@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="001-1" author="chess-service">
+        <comment>Create chess_games table</comment>
+        <createTable tableName="chess_games">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="uuid" type="uuid">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="white_player_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="black_player_id" type="bigint"/>
+            <column name="game_type" type="varchar(10)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="varchar(30)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="result" type="varchar(20)"/>
+            <column name="result_reason" type="varchar(30)"/>
+            <column name="fen" type="varchar(255)" defaultValue="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1">
+                <constraints nullable="false"/>
+            </column>
+            <column name="pgn" type="text"/>
+            <column name="move_count" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ai_difficulty" type="int"/>
+            <column name="draw_offered_by" type="bigint"/>
+            <column name="last_move_at" type="timestamp"/>
+            <column name="version" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp" defaultValueComputed="NOW()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="NOW()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="chess_games" indexName="idx_chess_games_white_player">
+            <column name="white_player_id"/>
+        </createIndex>
+        <createIndex tableName="chess_games" indexName="idx_chess_games_black_player">
+            <column name="black_player_id"/>
+        </createIndex>
+        <createIndex tableName="chess_games" indexName="idx_chess_games_status">
+            <column name="status"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
