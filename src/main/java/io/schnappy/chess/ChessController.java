@@ -1,16 +1,17 @@
 package io.schnappy.chess;
 
-import io.schnappy.common.security.Permission;
-import io.schnappy.common.security.RequirePermission;
+import io.schnappy.chess.security.GatewayUser;
+import io.schnappy.chess.security.Permission;
+import io.schnappy.chess.security.RequirePermission;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,8 +31,8 @@ public class ChessController {
     @PostMapping("/games")
     public ResponseEntity<ChessGameDto> createGame(
             @RequestBody CreateGameRequest request,
-            JwtAuthenticationToken auth) {
-        Long userId = getUserId(auth);
+            @RequestAttribute("gatewayUser") GatewayUser auth) {
+        Long userId = auth.userId();
         ChessGame game;
         if (request.type() == GameType.AI) {
             game = chessService.createAiGame(userId, request.difficulty() != null ? request.difficulty() : 10);
@@ -42,8 +43,8 @@ public class ChessController {
     }
 
     @GetMapping("/games")
-    public List<ChessGameDto> getActiveGames(JwtAuthenticationToken auth) {
-        return chessService.getActiveGames(getUserId(auth)).stream()
+    public List<ChessGameDto> getActiveGames(@RequestAttribute("gatewayUser") GatewayUser auth) {
+        return chessService.getActiveGames(auth.userId()).stream()
             .map(ChessGameDto::from)
             .toList();
     }
@@ -61,67 +62,63 @@ public class ChessController {
     }
 
     @GetMapping("/games/history")
-    public Page<ChessGameDto> getHistory(JwtAuthenticationToken auth, Pageable pageable) {
-        return chessService.getHistory(getUserId(auth), pageable)
+    public Page<ChessGameDto> getHistory(@RequestAttribute("gatewayUser") GatewayUser auth, Pageable pageable) {
+        return chessService.getHistory(auth.userId(), pageable)
             .map(ChessGameDto::from);
     }
 
     @PostMapping("/games/{uuid}/join")
-    public ChessGameDto joinGame(@PathVariable UUID uuid, JwtAuthenticationToken auth) {
-        return ChessGameDto.from(chessService.joinGame(uuid, getUserId(auth)));
+    public ChessGameDto joinGame(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
+        return ChessGameDto.from(chessService.joinGame(uuid, auth.userId()));
     }
 
     @PostMapping("/games/{uuid}/move")
     public ChessGameDto makeMove(
             @PathVariable UUID uuid,
             @RequestBody Map<String, String> body,
-            JwtAuthenticationToken auth) {
+            @RequestAttribute("gatewayUser") GatewayUser auth) {
         String move = body.get("move");
         if (move == null || move.isBlank()) {
             throw new IllegalArgumentException("Move is required");
         }
-        return ChessGameDto.from(chessService.makeMove(uuid, move.trim(), getUserId(auth)));
+        return ChessGameDto.from(chessService.makeMove(uuid, move.trim(), auth.userId()));
     }
 
     @PostMapping("/games/{uuid}/ai-move")
     public ChessGameDto makeAiMove(
             @PathVariable UUID uuid,
             @RequestBody Map<String, String> body,
-            JwtAuthenticationToken auth) {
+            @RequestAttribute("gatewayUser") GatewayUser auth) {
         String move = body.get("move");
         if (move == null || move.isBlank()) {
             throw new IllegalArgumentException("Move is required");
         }
-        return ChessGameDto.from(chessService.makeAiMove(uuid, move.trim(), getUserId(auth)));
+        return ChessGameDto.from(chessService.makeAiMove(uuid, move.trim(), auth.userId()));
     }
 
     @PostMapping("/games/{uuid}/resign")
-    public ChessGameDto resign(@PathVariable UUID uuid, JwtAuthenticationToken auth) {
-        return ChessGameDto.from(chessService.resign(uuid, getUserId(auth)));
+    public ChessGameDto resign(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
+        return ChessGameDto.from(chessService.resign(uuid, auth.userId()));
     }
 
     @PostMapping("/games/{uuid}/draw")
-    public ChessGameDto offerDraw(@PathVariable UUID uuid, JwtAuthenticationToken auth) {
-        return ChessGameDto.from(chessService.offerDraw(uuid, getUserId(auth)));
+    public ChessGameDto offerDraw(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
+        return ChessGameDto.from(chessService.offerDraw(uuid, auth.userId()));
     }
 
     @PostMapping("/games/{uuid}/draw/accept")
-    public ChessGameDto acceptDraw(@PathVariable UUID uuid, JwtAuthenticationToken auth) {
-        return ChessGameDto.from(chessService.acceptDraw(uuid, getUserId(auth)));
+    public ChessGameDto acceptDraw(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
+        return ChessGameDto.from(chessService.acceptDraw(uuid, auth.userId()));
     }
 
     @PostMapping("/games/{uuid}/draw/decline")
-    public ChessGameDto declineDraw(@PathVariable UUID uuid, JwtAuthenticationToken auth) {
-        return ChessGameDto.from(chessService.declineDraw(uuid, getUserId(auth)));
+    public ChessGameDto declineDraw(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
+        return ChessGameDto.from(chessService.declineDraw(uuid, auth.userId()));
     }
 
     @DeleteMapping("/games/{uuid}")
-    public ResponseEntity<Void> abandon(@PathVariable UUID uuid, JwtAuthenticationToken auth) {
-        chessService.abandon(uuid, getUserId(auth));
+    public ResponseEntity<Void> abandon(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
+        chessService.abandon(uuid, auth.userId());
         return ResponseEntity.noContent().build();
-    }
-
-    private Long getUserId(JwtAuthenticationToken auth) {
-        return auth.getToken().getClaim("uid");
     }
 }
