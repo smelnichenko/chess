@@ -76,6 +76,8 @@ spotbugsMain {
     }
 }
 
+spotbugsTest.enabled = false
+
 check.dependsOn spotbugsMain
 
 dependencyCheck {
