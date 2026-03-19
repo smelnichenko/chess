@@ -330,7 +330,7 @@ public class ChessService {
         if (existingPgn != null && !existingPgn.isEmpty()) {
             sb.append(existingPgn);
         }
-        if (moveCount % 2 == 1) {
+        if (moveCount % 2 != 0) {
             if (!sb.isEmpty()) {
                 sb.append(' ');
             }

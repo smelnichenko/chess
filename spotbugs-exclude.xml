@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <Match><Package name="~io\.schnappy\.chess\.dto.*"/></Match>
+    <Match><Package name="~io\.schnappy\.chess\.entity.*"/></Match>
+    <Match><Package name="~io\.schnappy\.chess\.config.*"/></Match>
+    <Match><Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/></Match>
+</FindBugsFilter>
