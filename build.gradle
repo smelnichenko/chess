@@ -106,6 +106,8 @@ pitest {
     timestampedReports = false
     mutators = ['DEFAULTS']
     timeoutConstInMillis = 10000
+    verbose = false
+    features = ['-FSPRING']
 }
 
 sonar {
