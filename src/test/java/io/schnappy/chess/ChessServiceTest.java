@@ -5,7 +5,6 @@ import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -19,7 +18,10 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ChessServiceTest {
@@ -64,7 +66,7 @@ class ChessServiceTest {
     @Test
     void createAiGame_difficultyZero_allowed() {
         ChessGame result = chessService.createAiGame(WHITE_USER, 0);
-        assertThat(result.getAiDifficulty()).isEqualTo(0);
+        assertThat(result.getAiDifficulty()).isZero();
     }
 
     @Test
@@ -120,9 +122,10 @@ class ChessServiceTest {
     @Test
     void joinGame_creatorJoinsOwnGame_throws() {
         ChessGame game = pvpWaitingGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.joinGame(game.getUuid(), WHITE_USER))
+        assertThatThrownBy(() -> chessService.joinGame(gameUuid, WHITE_USER))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Cannot join your own game");
     }
@@ -130,9 +133,10 @@ class ChessServiceTest {
     @Test
     void joinGame_gameAlreadyHasOpponent_throws() {
         ChessGame game = pvpInProgressGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.joinGame(game.getUuid(), 3L))
+        assertThatThrownBy(() -> chessService.joinGame(gameUuid, 3L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Game already has an opponent");
     }
@@ -167,10 +171,11 @@ class ChessServiceTest {
     @Test
     void makeMove_illegalMove_throws() {
         ChessGame game = pvpInProgressGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
         // e2e5 is not a legal pawn move from starting position
-        assertThatThrownBy(() -> chessService.makeMove(game.getUuid(), "e2e5", WHITE_USER))
+        assertThatThrownBy(() -> chessService.makeMove(gameUuid, "e2e5", WHITE_USER))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Illegal move");
     }
@@ -178,10 +183,11 @@ class ChessServiceTest {
     @Test
     void makeMove_wrongTurn_throws() {
         ChessGame game = pvpInProgressGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
         // It's white's turn but black tries to move
-        assertThatThrownBy(() -> chessService.makeMove(game.getUuid(), "e7e5", BLACK_USER))
+        assertThatThrownBy(() -> chessService.makeMove(gameUuid, "e7e5", BLACK_USER))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Not your turn");
     }
@@ -189,9 +195,10 @@ class ChessServiceTest {
     @Test
     void makeMove_nonPlayerMoves_throws() {
         ChessGame game = pvpInProgressGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.makeMove(game.getUuid(), "e2e4", 99L))
+        assertThatThrownBy(() -> chessService.makeMove(gameUuid, "e2e4", 99L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Not a player in this game");
     }
@@ -199,9 +206,10 @@ class ChessServiceTest {
     @Test
     void makeMove_finishedGame_throws() {
         ChessGame game = finishedGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.makeMove(game.getUuid(), "e2e4", WHITE_USER))
+        assertThatThrownBy(() -> chessService.makeMove(gameUuid, "e2e4", WHITE_USER))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Game is already finished");
     }
@@ -237,9 +245,10 @@ class ChessServiceTest {
     @Test
     void makeAiMove_notAiGame_throws() {
         ChessGame game = pvpInProgressGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.makeAiMove(game.getUuid(), "e7e5", WHITE_USER))
+        assertThatThrownBy(() -> chessService.makeAiMove(gameUuid, "e7e5", WHITE_USER))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Not an AI game");
     }
@@ -247,9 +256,10 @@ class ChessServiceTest {
     @Test
     void makeAiMove_nonOwnerCalls_throws() {
         ChessGame game = aiInProgressGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.makeAiMove(game.getUuid(), "e7e5", BLACK_USER))
+        assertThatThrownBy(() -> chessService.makeAiMove(gameUuid, "e7e5", BLACK_USER))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Not a player in this game");
     }
@@ -258,9 +268,10 @@ class ChessServiceTest {
     void makeAiMove_whiteTurn_throws() {
         // Still white's turn — AI shouldn't move
         ChessGame game = aiInProgressGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.makeAiMove(game.getUuid(), "e7e5", WHITE_USER))
+        assertThatThrownBy(() -> chessService.makeAiMove(gameUuid, "e7e5", WHITE_USER))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Not the AI's turn");
     }
@@ -296,9 +307,10 @@ class ChessServiceTest {
     @Test
     void resign_nonPlayer_throws() {
         ChessGame game = pvpInProgressGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.resign(game.getUuid(), 99L))
+        assertThatThrownBy(() -> chessService.resign(gameUuid, 99L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Not a player in this game");
     }
@@ -321,9 +333,10 @@ class ChessServiceTest {
     @Test
     void offerDraw_aiGame_throws() {
         ChessGame game = aiInProgressGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.offerDraw(game.getUuid(), WHITE_USER))
+        assertThatThrownBy(() -> chessService.offerDraw(gameUuid, WHITE_USER))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Draw offers only in PvP games");
     }
@@ -344,9 +357,10 @@ class ChessServiceTest {
     @Test
     void acceptDraw_noOfferPending_throws() {
         ChessGame game = pvpInProgressGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.acceptDraw(game.getUuid(), BLACK_USER))
+        assertThatThrownBy(() -> chessService.acceptDraw(gameUuid, BLACK_USER))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("No pending draw offer to accept");
     }
@@ -355,10 +369,11 @@ class ChessServiceTest {
     void acceptDraw_ownOffer_throws() {
         ChessGame game = pvpInProgressGame();
         game.setDrawOfferedBy(WHITE_USER);
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
         // White offered, white tries to accept their own offer
-        assertThatThrownBy(() -> chessService.acceptDraw(game.getUuid(), WHITE_USER))
+        assertThatThrownBy(() -> chessService.acceptDraw(gameUuid, WHITE_USER))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("No pending draw offer to accept");
     }
@@ -378,9 +393,10 @@ class ChessServiceTest {
     @Test
     void declineDraw_noOfferPending_throws() {
         ChessGame game = pvpInProgressGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.declineDraw(game.getUuid(), BLACK_USER))
+        assertThatThrownBy(() -> chessService.declineDraw(gameUuid, BLACK_USER))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("No pending draw offer to decline");
     }
@@ -403,9 +419,10 @@ class ChessServiceTest {
     @Test
     void abandon_nonCreator_throws() {
         ChessGame game = pvpWaitingGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+        UUID gameUuid = game.getUuid();
+        when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.abandon(game.getUuid(), BLACK_USER))
+        assertThatThrownBy(() -> chessService.abandon(gameUuid, BLACK_USER))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Only the creator can abandon");
     }

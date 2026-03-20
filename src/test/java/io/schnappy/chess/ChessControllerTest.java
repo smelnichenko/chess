@@ -19,9 +19,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Plain unit tests for ChessController.
@@ -236,8 +235,9 @@ class ChessControllerTest {
     @Test
     void makeMove_nullMove_throws() {
         UUID uuid = UUID.randomUUID();
+        Map<String, String> body = Map.of();
 
-        assertThatThrownBy(() -> controller.makeMove(uuid, Map.of(), whiteUser))
+        assertThatThrownBy(() -> controller.makeMove(uuid, body, whiteUser))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Move is required");
     }
@@ -245,8 +245,9 @@ class ChessControllerTest {
     @Test
     void makeMove_blankMove_throws() {
         UUID uuid = UUID.randomUUID();
+        Map<String, String> body = Map.of("move", "   ");
 
-        assertThatThrownBy(() -> controller.makeMove(uuid, Map.of("move", "   "), whiteUser))
+        assertThatThrownBy(() -> controller.makeMove(uuid, body, whiteUser))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Move is required");
     }
@@ -270,8 +271,9 @@ class ChessControllerTest {
     @Test
     void makeAiMove_nullMove_throws() {
         UUID uuid = UUID.randomUUID();
+        Map<String, String> body = Map.of();
 
-        assertThatThrownBy(() -> controller.makeAiMove(uuid, Map.of(), whiteUser))
+        assertThatThrownBy(() -> controller.makeAiMove(uuid, body, whiteUser))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Move is required");
     }
