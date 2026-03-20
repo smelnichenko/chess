@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.mock;
 
 class WebSocketAuthInterceptorTest {
@@ -30,8 +31,9 @@ class WebSocketAuthInterceptorTest {
         boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
 
         assertThat(result).isTrue();
-        assertThat(attributes).containsEntry("userId", 42L);
-        assertThat(attributes).containsEntry("userUuid", UUID.fromString("550e8400-e29b-41d4-a716-446655440000"));
+        assertThat(attributes)
+                .containsEntry("userId", 42L)
+                .containsEntry("userUuid", UUID.fromString("550e8400-e29b-41d4-a716-446655440000"));
     }
 
     @Test
@@ -44,8 +46,9 @@ class WebSocketAuthInterceptorTest {
         boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
 
         assertThat(result).isTrue();
-        assertThat(attributes).containsEntry("userId", 7L);
-        assertThat(attributes).doesNotContainKey("userUuid");
+        assertThat(attributes)
+                .containsEntry("userId", 7L)
+                .doesNotContainKey("userUuid");
     }
 
     @Test
@@ -107,8 +110,9 @@ class WebSocketAuthInterceptorTest {
         boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
 
         assertThat(result).isTrue();
-        assertThat(attributes).containsEntry("userId", 3L);
-        assertThat(attributes).doesNotContainKey("userUuid");
+        assertThat(attributes)
+                .containsEntry("userId", 3L)
+                .doesNotContainKey("userUuid");
     }
 
     @Test
@@ -123,9 +127,9 @@ class WebSocketAuthInterceptorTest {
 
     @Test
     void afterHandshake_doesNothing() {
-        // Just verify it doesn't throw
-        interceptor.afterHandshake(
+        assertThatCode(() -> interceptor.afterHandshake(
                 mock(org.springframework.http.server.ServerHttpRequest.class),
-                response, wsHandler, null);
+                response, wsHandler, null))
+                .doesNotThrowAnyException();
     }
 }

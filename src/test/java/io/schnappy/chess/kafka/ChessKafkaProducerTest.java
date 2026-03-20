@@ -10,7 +10,6 @@ import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.concurrent.CompletableFuture;
 
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,7 +32,7 @@ class ChessKafkaProducerTest {
                 .moveCount(1)
                 .build();
 
-        when(kafkaTemplate.send(eq("chess.moves"), eq("game-uuid-1"), eq(dto)))
+        when(kafkaTemplate.send("chess.moves", "game-uuid-1", dto))
                 .thenReturn(new CompletableFuture<>());
 
         producer.publishGameEvent(dto);
@@ -51,7 +50,7 @@ class ChessKafkaProducerTest {
                 .moveCount(0)
                 .build();
 
-        when(kafkaTemplate.send(eq("chess.moves"), eq("game-uuid-2"), eq(dto)))
+        when(kafkaTemplate.send("chess.moves", "game-uuid-2", dto))
                 .thenReturn(null);
 
         // Should not throw NPE
@@ -75,7 +74,7 @@ class ChessKafkaProducerTest {
         CompletableFuture<org.springframework.kafka.support.SendResult<String, ChessGameDto>> typedFuture =
                 (CompletableFuture) future;
 
-        when(kafkaTemplate.send(eq("chess.moves"), eq("game-uuid-3"), eq(dto)))
+        when(kafkaTemplate.send("chess.moves", "game-uuid-3", dto))
                 .thenReturn(typedFuture);
 
         producer.publishGameEvent(dto);

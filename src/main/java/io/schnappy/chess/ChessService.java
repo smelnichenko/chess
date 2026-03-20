@@ -304,10 +304,10 @@ public class ChessService {
             throw new IllegalArgumentException(NOT_A_PLAYER);
         }
         if (game.isTerminal()) {
-            throw new IllegalStateException("Game is already finished");
+            throw new IllegalStateException(GAME_ALREADY_FINISHED);
         }
         if (game.getStatus() != GameStatus.IN_PROGRESS) {
-            throw new IllegalStateException("Game is not in progress");
+            throw new IllegalStateException(GAME_NOT_IN_PROGRESS);
         }
         if (!game.isPlayersTurn(userId)) {
             throw new IllegalStateException("Not your turn");

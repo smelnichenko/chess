@@ -37,7 +37,7 @@ class SubscriptionGuardTest {
     @Test
     void onSubscribe_playerInGame_allows() {
         UUID gameUuid = UUID.randomUUID();
-        ChessGame game = createGame(gameUuid, 1L, 2L);
+        ChessGame game = createGame(1L, 2L);
         when(chessGameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
         var event = createSubscribeEvent("/topic/chess." + gameUuid, 1L);
@@ -48,7 +48,7 @@ class SubscriptionGuardTest {
     @Test
     void onSubscribe_nonPlayerInGame_rejects() {
         UUID gameUuid = UUID.randomUUID();
-        ChessGame game = createGame(gameUuid, 1L, 2L);
+        ChessGame game = createGame(1L, 2L);
         when(chessGameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
         var event = createSubscribeEvent("/topic/chess." + gameUuid, 99L);
@@ -72,7 +72,7 @@ class SubscriptionGuardTest {
     @Test
     void onSubscribe_nullUserId_rejects() {
         UUID gameUuid = UUID.randomUUID();
-        ChessGame game = createGame(gameUuid, 1L, 2L);
+        ChessGame game = createGame(1L, 2L);
         when(chessGameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
         var event = createSubscribeEvent("/topic/chess." + gameUuid, null);
@@ -99,7 +99,7 @@ class SubscriptionGuardTest {
     @Test
     void onSubscribe_nullSessionAttributes_rejectsChessTopic() {
         UUID gameUuid = UUID.randomUUID();
-        ChessGame game = createGame(gameUuid, 1L, 2L);
+        ChessGame game = createGame(1L, 2L);
         when(chessGameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
         // Create event without session attributes
@@ -117,14 +117,12 @@ class SubscriptionGuardTest {
     // Helpers
     // -----------------------------------------------------------------------
 
-    private ChessGame createGame(UUID uuid, Long whiteId, Long blackId) {
+    private ChessGame createGame(Long whiteId, Long blackId) {
         ChessGame game = new ChessGame();
         game.setWhitePlayerId(whiteId);
         game.setBlackPlayerId(blackId);
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.IN_PROGRESS);
-        // Use reflection or setter to override uuid if needed;
-        // ChessGame generates random UUID by default, but findByUuid mocking makes this work
         return game;
     }
 
