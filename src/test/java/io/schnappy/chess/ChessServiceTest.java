@@ -127,7 +127,7 @@ class ChessServiceTest {
 
         assertThatThrownBy(() -> chessService.joinGame(gameUuid, WHITE_USER))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Cannot join your own game");
+                .hasMessageContaining("Cannot join own game");
     }
 
     @Test

@@ -20,6 +20,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ChessService {
 
+    private static final String NOT_A_PLAYER = "Not a player in this game";
+    private static final String GAME_ALREADY_FINISHED = "Game is already finished";
+    private static final String GAME_NOT_IN_PROGRESS = "Game is not in progress";
+
     private final ChessGameRepository gameRepository;
     private final ChessGameCacheService cacheService;
     private final ChessKafkaProducer kafkaProducer;
@@ -54,7 +58,7 @@ public class ChessService {
     public ChessGame joinGame(UUID gameUuid, Long userId) {
         var game = findByUuid(gameUuid);
         if (userId.equals(game.getWhitePlayerId())) {
-            throw new IllegalArgumentException("Cannot join your own game");
+            throw new IllegalArgumentException("Cannot join own game");
         }
         if (game.getBlackPlayerId() != null) {
             throw new IllegalStateException("Game already has an opponent");
@@ -135,13 +139,13 @@ public class ChessService {
             throw new IllegalArgumentException("Not an AI game");
         }
         if (!userId.equals(game.getWhitePlayerId())) {
-            throw new IllegalArgumentException("Not a player in this game");
+            throw new IllegalArgumentException(NOT_A_PLAYER);
         }
         if (game.isTerminal()) {
-            throw new IllegalStateException("Game is already finished");
+            throw new IllegalStateException(GAME_ALREADY_FINISHED);
         }
         if (game.getStatus() != GameStatus.IN_PROGRESS) {
-            throw new IllegalStateException("Game is not in progress");
+            throw new IllegalStateException(GAME_NOT_IN_PROGRESS);
         }
         if (game.isWhiteTurn()) {
             throw new IllegalStateException("Not the AI's turn");
@@ -184,7 +188,7 @@ public class ChessService {
     public ChessGame resign(UUID gameUuid, Long userId) {
         var game = findByUuid(gameUuid);
         if (!game.isPlayerInGame(userId)) {
-            throw new IllegalArgumentException("Not a player in this game");
+            throw new IllegalArgumentException(NOT_A_PLAYER);
         }
         game.transition(GameEvent.RESIGN);
         game.setResult(userId.equals(game.getWhitePlayerId())
@@ -219,7 +223,7 @@ public class ChessService {
     public ChessGame acceptDraw(UUID gameUuid, Long userId) {
         var game = findByUuid(gameUuid);
         if (!game.isPlayerInGame(userId)) {
-            throw new IllegalArgumentException("Not a player in this game");
+            throw new IllegalArgumentException(NOT_A_PLAYER);
         }
         if (game.getDrawOfferedBy() == null || game.getDrawOfferedBy().equals(userId)) {
             throw new IllegalArgumentException("No pending draw offer to accept");
@@ -238,7 +242,7 @@ public class ChessService {
     public ChessGame declineDraw(UUID gameUuid, Long userId) {
         var game = findByUuid(gameUuid);
         if (!game.isPlayerInGame(userId)) {
-            throw new IllegalArgumentException("Not a player in this game");
+            throw new IllegalArgumentException(NOT_A_PLAYER);
         }
         if (game.getDrawOfferedBy() == null || game.getDrawOfferedBy().equals(userId)) {
             throw new IllegalArgumentException("No pending draw offer to decline");
@@ -297,7 +301,7 @@ public class ChessService {
 
     private void validatePlayerTurn(ChessGame game, Long userId) {
         if (!game.isPlayerInGame(userId)) {
-            throw new IllegalArgumentException("Not a player in this game");
+            throw new IllegalArgumentException(NOT_A_PLAYER);
         }
         if (game.isTerminal()) {
             throw new IllegalStateException("Game is already finished");
