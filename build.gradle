@@ -112,8 +112,8 @@ pitest {
 
 sonar {
     properties {
-        property 'sonar.projectKey', 'monitor-chess'
-        property 'sonar.projectName', 'Monitor Chess Service'
+        property 'sonar.projectKey', 'schnappy-chess'
+        property 'sonar.projectName', 'Schnappy Chess'
         property 'sonar.host.url', System.getenv('SONAR_HOST_URL') ?: 'https://sonar.pmon.dev'
         property 'sonar.token', System.getenv('SONAR_TOKEN') ?: ''
         property 'sonar.java.source', '25'
