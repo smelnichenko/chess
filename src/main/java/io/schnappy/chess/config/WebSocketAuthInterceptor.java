@@ -1,6 +1,8 @@
 package io.schnappy.chess.config;
 
+import io.schnappy.chess.security.UserIdResolver;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -14,26 +16,31 @@ import java.util.UUID;
 
 /**
  * Reads X-User-* headers set by the API gateway for WebSocket handshake authentication.
+ * Primary identifier is X-User-UUID; Long userId is resolved via {@link UserIdResolver}.
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class WebSocketAuthInterceptor implements HandshakeInterceptor {
+
+    private final UserIdResolver userIdResolver;
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler wsHandler, Map<String, Object> attributes) {
         if (request instanceof ServletServerHttpRequest servletRequest) {
             HttpServletRequest httpRequest = servletRequest.getServletRequest();
-            String userIdHeader = httpRequest.getHeader("X-User-ID");
             String userUuidHeader = httpRequest.getHeader("X-User-UUID");
 
-            if (userIdHeader != null && !userIdHeader.isBlank()) {
+            if (userUuidHeader != null && !userUuidHeader.isBlank()) {
                 try {
-                    Long userId = Long.parseLong(userIdHeader);
-                    attributes.put("userId", userId);
-                    if (userUuidHeader != null && !userUuidHeader.isBlank()) {
-                        attributes.put("userUuid", UUID.fromString(userUuidHeader));
+                    UUID userUuid = UUID.fromString(userUuidHeader);
+                    Long userId = userIdResolver.resolve(userUuidHeader);
+
+                    if (userId != null) {
+                        attributes.put("userId", userId);
                     }
+                    attributes.put("userUuid", userUuid);
                     return true;
                 } catch (Exception e) {
                     log.debug("WebSocket auth failed: {}", e.getMessage());
@@ -46,6 +53,6 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
     @Override
     public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                WebSocketHandler wsHandler, Exception exception) {
-        // No post-handshake action needed — auth is validated in beforeHandshake
+        // No post-handshake action needed
     }
 }

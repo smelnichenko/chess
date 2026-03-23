@@ -1,0 +1,106 @@
+package io.schnappy.chess.kafka;
+
+import io.schnappy.chess.ChessUser;
+import io.schnappy.chess.ChessUserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Consumes user.events from the admin service to maintain a local user table
+ * for UUID-to-Long-ID resolution in the chess service.
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class UserEventConsumer {
+
+    private final ChessUserRepository chessUserRepository;
+
+    @KafkaListener(topics = "user.events", groupId = "chess-user",
+            properties = "spring.json.trusted.packages=java.util,java.lang")
+    public void handleUserEvent(Map<String, Object> event) {
+        String type = (String) event.get("type");
+        if (type == null) {
+            log.warn("Received user event without type: {}", event);
+            return;
+        }
+
+        switch (type) {
+            case "USER_CREATED", "USER_REGISTERED", "REGISTRATION_APPROVED" -> upsertUser(event);
+            case "USER_ENABLED" -> updateEnabled(event, true);
+            case "USER_DISABLED" -> updateEnabled(event, false);
+            default -> log.debug("Ignoring user event type: {}", type);
+        }
+    }
+
+    private void upsertUser(Map<String, Object> event) {
+        Long userId = toLong(event.get("userId"));
+        String email = (String) event.get("email");
+        UUID uuid = toUuid(event.get("uuid"));
+        if (userId == null || email == null) return;
+
+        var user = chessUserRepository.findById(userId).orElseGet(() -> {
+            var u = new ChessUser();
+            u.setId(userId);
+            return u;
+        });
+        user.setEmail(email);
+        user.setEnabled(true);
+        if (uuid != null) {
+            user.setUuid(uuid);
+        }
+        user.setUpdatedAt(Instant.now());
+        chessUserRepository.save(user);
+        log.info("Synced chess user: {} ({})", userId, email);
+    }
+
+    private void updateEnabled(Map<String, Object> event, boolean enabled) {
+        Long userId = toLong(event.get("userId"));
+        UUID uuid = toUuid(event.get("uuid"));
+        if (userId == null && uuid == null) return;
+
+        ChessUser user;
+        if (userId != null) {
+            user = chessUserRepository.findById(userId).orElse(null);
+        } else {
+            user = chessUserRepository.findByUuid(uuid).orElse(null);
+        }
+
+        if (user != null) {
+            user.setEnabled(enabled);
+            user.setUpdatedAt(Instant.now());
+            chessUserRepository.save(user);
+            log.info("Chess user {} {}", user.getId(), enabled ? "enabled" : "disabled");
+        }
+    }
+
+    private Long toLong(Object value) {
+        if (value instanceof Long l) return l;
+        if (value instanceof Number n) return n.longValue();
+        if (value instanceof String s) {
+            try {
+                return Long.parseLong(s);
+            } catch (NumberFormatException _) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private UUID toUuid(Object value) {
+        if (value instanceof String s && !s.isBlank()) {
+            try {
+                return UUID.fromString(s);
+            } catch (IllegalArgumentException _) {
+                return null;
+            }
+        }
+        return null;
+    }
+}

@@ -1,5 +1,6 @@
 package io.schnappy.chess.config;
 
+import io.schnappy.chess.security.UserIdResolver;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.http.server.ServletServerHttpRequest;
@@ -16,15 +17,17 @@ import static org.mockito.Mockito.mock;
 
 class WebSocketAuthInterceptorTest {
 
-    private final WebSocketAuthInterceptor interceptor = new WebSocketAuthInterceptor();
+    private static final String TEST_UUID = "550e8400-e29b-41d4-a716-446655440000";
+
+    private final UserIdResolver resolver = uuid -> TEST_UUID.equals(uuid) ? 42L : null;
+    private final WebSocketAuthInterceptor interceptor = new WebSocketAuthInterceptor(resolver);
     private final WebSocketHandler wsHandler = mock(WebSocketHandler.class);
     private final ServerHttpResponse response = mock(ServerHttpResponse.class);
 
     @Test
     void beforeHandshake_validHeaders_populatesAttributes() {
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
-        httpRequest.addHeader("X-User-ID", "42");
-        httpRequest.addHeader("X-User-UUID", "550e8400-e29b-41d4-a716-446655440000");
+        httpRequest.addHeader("X-User-UUID", TEST_UUID);
         ServletServerHttpRequest request = new ServletServerHttpRequest(httpRequest);
         Map<String, Object> attributes = new HashMap<>();
 
@@ -33,13 +36,13 @@ class WebSocketAuthInterceptorTest {
         assertThat(result).isTrue();
         assertThat(attributes)
                 .containsEntry("userId", 42L)
-                .containsEntry("userUuid", UUID.fromString("550e8400-e29b-41d4-a716-446655440000"));
+                .containsEntry("userUuid", UUID.fromString(TEST_UUID));
     }
 
     @Test
-    void beforeHandshake_validUserIdOnly_setsUserIdWithoutUuid() {
+    void beforeHandshake_userNotInTable_setsUuidButNoUserId() {
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
-        httpRequest.addHeader("X-User-ID", "7");
+        httpRequest.addHeader("X-User-UUID", "00000000-0000-0000-0000-000000000099");
         ServletServerHttpRequest request = new ServletServerHttpRequest(httpRequest);
         Map<String, Object> attributes = new HashMap<>();
 
@@ -47,14 +50,14 @@ class WebSocketAuthInterceptorTest {
 
         assertThat(result).isTrue();
         assertThat(attributes)
-                .containsEntry("userId", 7L)
-                .doesNotContainKey("userUuid");
+                .containsEntry("userUuid", UUID.fromString("00000000-0000-0000-0000-000000000099"))
+                .doesNotContainKey("userId");
     }
 
     @Test
-    void beforeHandshake_blankUserId_rejectsFalse() {
+    void beforeHandshake_blankUuid_rejectsFalse() {
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
-        httpRequest.addHeader("X-User-ID", "   ");
+        httpRequest.addHeader("X-User-UUID", "   ");
         ServletServerHttpRequest request = new ServletServerHttpRequest(httpRequest);
         Map<String, Object> attributes = new HashMap<>();
 
@@ -75,21 +78,8 @@ class WebSocketAuthInterceptorTest {
     }
 
     @Test
-    void beforeHandshake_malformedUserId_rejectsFalse() {
+    void beforeHandshake_malformedUuid_rejectsFalse() {
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
-        httpRequest.addHeader("X-User-ID", "not-a-number");
-        ServletServerHttpRequest request = new ServletServerHttpRequest(httpRequest);
-        Map<String, Object> attributes = new HashMap<>();
-
-        boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
-
-        assertThat(result).isFalse();
-    }
-
-    @Test
-    void beforeHandshake_invalidUuid_rejectsFalse() {
-        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
-        httpRequest.addHeader("X-User-ID", "5");
         httpRequest.addHeader("X-User-UUID", "not-a-uuid");
         ServletServerHttpRequest request = new ServletServerHttpRequest(httpRequest);
         Map<String, Object> attributes = new HashMap<>();
@@ -100,24 +90,9 @@ class WebSocketAuthInterceptorTest {
     }
 
     @Test
-    void beforeHandshake_blankUuid_setsUserIdOnly() {
-        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
-        httpRequest.addHeader("X-User-ID", "3");
-        httpRequest.addHeader("X-User-UUID", "   ");
-        ServletServerHttpRequest request = new ServletServerHttpRequest(httpRequest);
-        Map<String, Object> attributes = new HashMap<>();
-
-        boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
-
-        assertThat(result).isTrue();
-        assertThat(attributes)
-                .containsEntry("userId", 3L)
-                .doesNotContainKey("userUuid");
-    }
-
-    @Test
     void beforeHandshake_nonServletRequest_rejectsFalse() {
-        org.springframework.http.server.ServerHttpRequest nonServletRequest = mock(org.springframework.http.server.ServerHttpRequest.class);
+        org.springframework.http.server.ServerHttpRequest nonServletRequest =
+                mock(org.springframework.http.server.ServerHttpRequest.class);
         Map<String, Object> attributes = new HashMap<>();
 
         boolean result = interceptor.beforeHandshake(nonServletRequest, response, wsHandler, attributes);

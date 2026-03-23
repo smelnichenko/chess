@@ -17,22 +17,24 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class GatewayAuthFilterTest {
 
-    private GatewayAuthFilter filter;
+    private static final String TEST_UUID = "550e8400-e29b-41d4-a716-446655440000";
 
     @Mock
     private FilterChain filterChain;
 
+    private GatewayAuthFilter filter;
+
     @BeforeEach
     void setUp() {
-        filter = new GatewayAuthFilter();
+        UserIdResolver resolver = uuid -> TEST_UUID.equals(uuid) ? 42L : null;
+        filter = new GatewayAuthFilter(resolver);
         SecurityContextHolder.clearContext();
     }
 
     @Test
     void withValidHeaders_populatesSecurityContextAndRequestAttribute() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-User-ID", "42");
-        request.addHeader("X-User-UUID", "some-uuid");
+        request.addHeader("X-User-UUID", TEST_UUID);
         request.addHeader("X-User-Email", "user@example.com");
         request.addHeader("X-User-Permissions", "PLAY,CHAT");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -47,8 +49,8 @@ class GatewayAuthFilterTest {
 
         GatewayUser user = (GatewayUser) request.getAttribute(GatewayUser.REQUEST_ATTRIBUTE);
         assertThat(user).isNotNull();
+        assertThat(user.uuid()).isEqualTo(TEST_UUID);
         assertThat(user.userId()).isEqualTo(42L);
-        assertThat(user.uuid()).isEqualTo("some-uuid");
         assertThat(user.email()).isEqualTo("user@example.com");
         assertThat(user.permissions()).containsExactlyInAnyOrder("PLAY", "CHAT");
 
@@ -68,9 +70,9 @@ class GatewayAuthFilterTest {
     }
 
     @Test
-    void withBlankUserId_treatsAsUnauthenticated() throws Exception {
+    void withBlankUuid_treatsAsUnauthenticated() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-User-ID", "   ");
+        request.addHeader("X-User-UUID", "   ");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, filterChain);
@@ -80,24 +82,25 @@ class GatewayAuthFilterTest {
     }
 
     @Test
-    void withMalformedUserId_treatsAsUnauthenticated() throws Exception {
+    void withUserNotInTable_setsNullUserId() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-User-ID", "not-a-number");
+        request.addHeader("X-User-UUID", "00000000-0000-0000-0000-000000000099");
         request.addHeader("X-User-Email", "user@example.com");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, filterChain);
 
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-        assertThat(request.getAttribute(GatewayUser.REQUEST_ATTRIBUTE)).isNull();
+        GatewayUser user = (GatewayUser) request.getAttribute(GatewayUser.REQUEST_ATTRIBUTE);
+        assertThat(user).isNotNull();
+        assertThat(user.uuid()).isEqualTo("00000000-0000-0000-0000-000000000099");
+        assertThat(user.userId()).isNull();
         verify(filterChain).doFilter(request, response);
     }
 
     @Test
     void withEmptyPermissions_createsUserWithNoPermissions() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-User-ID", "5");
-        // No X-User-Permissions header
+        request.addHeader("X-User-UUID", TEST_UUID);
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, filterChain);
@@ -111,7 +114,7 @@ class GatewayAuthFilterTest {
     @Test
     void withSinglePermission_parsedCorrectly() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-User-ID", "7");
+        request.addHeader("X-User-UUID", TEST_UUID);
         request.addHeader("X-User-Permissions", "METRICS");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -123,14 +126,12 @@ class GatewayAuthFilterTest {
     }
 
     @Test
-    void filterChainAlwaysContinues_evenOnMalformedHeader() throws Exception {
+    void filterChainAlwaysContinues() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-User-ID", "bad-value");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, filterChain);
 
-        // Filter chain must still be called — no swallowed exceptions
         verify(filterChain).doFilter(request, response);
     }
 }

@@ -1,0 +1,33 @@
+package io.schnappy.chess;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Entity
+@Table(name = "chess_users")
+@Getter
+@Setter
+public class ChessUser {
+
+    @Id
+    private Long id;
+
+    @Column(unique = true)
+    private UUID uuid;
+
+    @Column(nullable = false)
+    private String email;
+
+    @Column(nullable = false)
+    private boolean enabled = true;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt = Instant.now();
+}

@@ -44,7 +44,7 @@ class PermissionInterceptorTest {
 
     @Test
     void checkClassPermission_userHasPermission_proceeds() throws Throwable {
-        setUpRequestWithUser(new GatewayUser(1L, "uuid", "user@test.com", List.of("PLAY")));
+        setUpRequestWithUser(new GatewayUser("uuid", "user@test.com", List.of("PLAY"), 1L));
         when(joinPoint.getSignature()).thenReturn(methodSignature);
         Method method = UnAnnotatedMethod.class.getMethod("doSomething");
         when(methodSignature.getMethod()).thenReturn(method);
@@ -60,7 +60,7 @@ class PermissionInterceptorTest {
 
     @Test
     void checkClassPermission_userLacksPermission_throwsForbidden() throws Throwable {
-        setUpRequestWithUser(new GatewayUser(1L, "uuid", "user@test.com", List.of("CHAT")));
+        setUpRequestWithUser(new GatewayUser("uuid", "user@test.com", List.of("CHAT"), 1L));
         when(joinPoint.getSignature()).thenReturn(methodSignature);
         Method method = UnAnnotatedMethod.class.getMethod("doSomething");
         when(methodSignature.getMethod()).thenReturn(method);
@@ -75,7 +75,7 @@ class PermissionInterceptorTest {
     @Test
     void checkClassPermission_methodAnnotationOverridesClass() throws Throwable {
         // User has METRICS but not PLAY — method-level annotation requires METRICS
-        setUpRequestWithUser(new GatewayUser(1L, "uuid", "user@test.com", List.of("METRICS")));
+        setUpRequestWithUser(new GatewayUser("uuid", "user@test.com", List.of("METRICS"), 1L));
         when(joinPoint.getSignature()).thenReturn(methodSignature);
         Method method = MethodAnnotatedController.class.getMethod("metricsEndpoint");
         when(methodSignature.getMethod()).thenReturn(method);
@@ -126,7 +126,7 @@ class PermissionInterceptorTest {
 
     @Test
     void checkMethodPermission_userHasPermission_proceeds() throws Throwable {
-        setUpRequestWithUser(new GatewayUser(1L, "uuid", "user@test.com", List.of("MANAGE_USERS")));
+        setUpRequestWithUser(new GatewayUser("uuid", "user@test.com", List.of("MANAGE_USERS"), 1L));
         when(joinPoint.proceed()).thenReturn("admin-result");
 
         RequirePermission methodAnnotation = createRequirePermission(Permission.MANAGE_USERS);
@@ -138,7 +138,7 @@ class PermissionInterceptorTest {
 
     @Test
     void checkMethodPermission_userLacksPermission_throwsForbidden() {
-        setUpRequestWithUser(new GatewayUser(1L, "uuid", "user@test.com", List.of("PLAY")));
+        setUpRequestWithUser(new GatewayUser("uuid", "user@test.com", List.of("PLAY"), 1L));
 
         RequirePermission methodAnnotation = createRequirePermission(Permission.MANAGE_USERS);
 
@@ -149,7 +149,7 @@ class PermissionInterceptorTest {
 
     @Test
     void checkMethodPermission_emptyPermissions_throwsForbidden() {
-        setUpRequestWithUser(new GatewayUser(1L, "uuid", "user@test.com", List.of()));
+        setUpRequestWithUser(new GatewayUser("uuid", "user@test.com", List.of(), 1L));
 
         RequirePermission methodAnnotation = createRequirePermission(Permission.PLAY);
 

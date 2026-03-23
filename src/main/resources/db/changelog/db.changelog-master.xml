@@ -7,5 +7,6 @@
 
     <include file="changes/001-create-chess-tables.xml" relativeToChangelogFile="true"/>
     <include file="changes/002-fix-version-column-type.xml" relativeToChangelogFile="true"/>
+    <include file="changes/003-create-chess-users-table.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

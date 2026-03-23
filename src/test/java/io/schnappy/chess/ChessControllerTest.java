@@ -49,8 +49,8 @@ class ChessControllerTest {
 
     @BeforeEach
     void setUp() {
-        whiteUser = new GatewayUser(WHITE_ID, "uuid-white", "white@example.com", List.of("PLAY"));
-        blackUser = new GatewayUser(BLACK_ID, "uuid-black", "black@example.com", List.of("PLAY"));
+        whiteUser = new GatewayUser("uuid-white", "white@example.com", List.of("PLAY"), WHITE_ID);
+        blackUser = new GatewayUser("uuid-black", "black@example.com", List.of("PLAY"), BLACK_ID);
     }
 
     // -----------------------------------------------------------------------

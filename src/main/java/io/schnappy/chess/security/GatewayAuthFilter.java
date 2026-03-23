@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -17,39 +18,42 @@ import java.util.List;
 /**
  * Reads X-User-* headers set by the API gateway after JWT validation.
  * Populates SecurityContext and sets GatewayUser as a request attribute.
+ * Primary identifier is X-User-UUID (Keycloak subject). The Long userId
+ * is resolved via {@link UserIdResolver} from the local user table.
  */
 @Component
+@RequiredArgsConstructor
 public class GatewayAuthFilter extends OncePerRequestFilter {
+
+    private final UserIdResolver userIdResolver;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        String userId = request.getHeader("X-User-ID");
+        String userUuid = request.getHeader("X-User-UUID");
 
-        if (userId != null && !userId.isBlank()) {
-            try {
-                String permissions = request.getHeader("X-User-Permissions");
-                List<String> permList = permissions != null && !permissions.isBlank()
-                        ? Arrays.asList(permissions.split(","))
-                        : List.of();
+        if (userUuid != null && !userUuid.isBlank()) {
+            String permissions = request.getHeader("X-User-Permissions");
+            List<String> permList = permissions != null && !permissions.isBlank()
+                    ? Arrays.asList(permissions.split(","))
+                    : List.of();
 
-                var user = new GatewayUser(
-                        Long.parseLong(userId),
-                        request.getHeader("X-User-UUID"),
-                        request.getHeader("X-User-Email"),
-                        permList
-                );
+            Long userId = userIdResolver.resolve(userUuid);
 
-                request.setAttribute(GatewayUser.REQUEST_ATTRIBUTE, user);
+            var user = new GatewayUser(
+                    userUuid,
+                    request.getHeader("X-User-Email"),
+                    permList,
+                    userId
+            );
 
-                var authorities = permList.stream()
-                        .map(SimpleGrantedAuthority::new)
-                        .toList();
-                var auth = new UsernamePasswordAuthenticationToken(user, null, authorities);
-                SecurityContextHolder.getContext().setAuthentication(auth);
-            } catch (NumberFormatException _) {
-                // Malformed X-User-ID — treat as unauthenticated
-            }
+            request.setAttribute(GatewayUser.REQUEST_ATTRIBUTE, user);
+
+            var authorities = permList.stream()
+                    .map(SimpleGrantedAuthority::new)
+                    .toList();
+            var auth = new UsernamePasswordAuthenticationToken(user, null, authorities);
+            SecurityContextHolder.getContext().setAuthentication(auth);
         }
 
         filterChain.doFilter(request, response);
