@@ -40,7 +40,6 @@ public class UserEventConsumer {
     }
 
     private void upsertUser(Map<String, Object> event) {
-        Long userId = toLong(event.get("userId"));
         String email = (String) event.get("email");
         UUID uuid = toUuid(event.get("uuid"));
         if (uuid == null || email == null) return;
@@ -50,9 +49,6 @@ public class UserEventConsumer {
             u.setUuid(uuid);
             return u;
         });
-        if (userId != null) {
-            user.setId(userId);
-        }
         user.setEmail(email);
         user.setEnabled(true);
         user.setUpdatedAt(Instant.now());
@@ -72,19 +68,6 @@ public class UserEventConsumer {
             chessUserRepository.save(user);
             log.info("Chess user {} {}", uuid, enabled ? "enabled" : "disabled");
         }
-    }
-
-    private Long toLong(Object value) {
-        if (value instanceof Long l) return l;
-        if (value instanceof Number n) return n.longValue();
-        if (value instanceof String s) {
-            try {
-                return Long.parseLong(s);
-            } catch (NumberFormatException _) {
-                return null;
-            }
-        }
-        return null;
     }
 
     private UUID toUuid(Object value) {
