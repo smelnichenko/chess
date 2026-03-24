@@ -15,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -23,6 +24,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class PermissionInterceptorTest {
+
+    private static final UUID TEST_UUID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
 
     @InjectMocks
     private PermissionInterceptor interceptor;
@@ -44,7 +47,7 @@ class PermissionInterceptorTest {
 
     @Test
     void checkClassPermission_userHasPermission_proceeds() throws Throwable {
-        setUpRequestWithUser(new GatewayUser("uuid", "user@test.com", List.of("PLAY"), 1L));
+        setUpRequestWithUser(new GatewayUser(TEST_UUID, "user@test.com", List.of("PLAY")));
         when(joinPoint.getSignature()).thenReturn(methodSignature);
         Method method = UnAnnotatedMethod.class.getMethod("doSomething");
         when(methodSignature.getMethod()).thenReturn(method);
@@ -60,7 +63,7 @@ class PermissionInterceptorTest {
 
     @Test
     void checkClassPermission_userLacksPermission_throwsForbidden() throws Throwable {
-        setUpRequestWithUser(new GatewayUser("uuid", "user@test.com", List.of("CHAT"), 1L));
+        setUpRequestWithUser(new GatewayUser(TEST_UUID, "user@test.com", List.of("CHAT")));
         when(joinPoint.getSignature()).thenReturn(methodSignature);
         Method method = UnAnnotatedMethod.class.getMethod("doSomething");
         when(methodSignature.getMethod()).thenReturn(method);
@@ -75,7 +78,7 @@ class PermissionInterceptorTest {
     @Test
     void checkClassPermission_methodAnnotationOverridesClass() throws Throwable {
         // User has METRICS but not PLAY — method-level annotation requires METRICS
-        setUpRequestWithUser(new GatewayUser("uuid", "user@test.com", List.of("METRICS"), 1L));
+        setUpRequestWithUser(new GatewayUser(TEST_UUID, "user@test.com", List.of("METRICS")));
         when(joinPoint.getSignature()).thenReturn(methodSignature);
         Method method = MethodAnnotatedController.class.getMethod("metricsEndpoint");
         when(methodSignature.getMethod()).thenReturn(method);
@@ -126,7 +129,7 @@ class PermissionInterceptorTest {
 
     @Test
     void checkMethodPermission_userHasPermission_proceeds() throws Throwable {
-        setUpRequestWithUser(new GatewayUser("uuid", "user@test.com", List.of("MANAGE_USERS"), 1L));
+        setUpRequestWithUser(new GatewayUser(TEST_UUID, "user@test.com", List.of("MANAGE_USERS")));
         when(joinPoint.proceed()).thenReturn("admin-result");
 
         RequirePermission methodAnnotation = createRequirePermission(Permission.MANAGE_USERS);
@@ -138,7 +141,7 @@ class PermissionInterceptorTest {
 
     @Test
     void checkMethodPermission_userLacksPermission_throwsForbidden() {
-        setUpRequestWithUser(new GatewayUser("uuid", "user@test.com", List.of("PLAY"), 1L));
+        setUpRequestWithUser(new GatewayUser(TEST_UUID, "user@test.com", List.of("PLAY")));
 
         RequirePermission methodAnnotation = createRequirePermission(Permission.MANAGE_USERS);
 
@@ -149,7 +152,7 @@ class PermissionInterceptorTest {
 
     @Test
     void checkMethodPermission_emptyPermissions_throwsForbidden() {
-        setUpRequestWithUser(new GatewayUser("uuid", "user@test.com", List.of(), 1L));
+        setUpRequestWithUser(new GatewayUser(TEST_UUID, "user@test.com", List.of()));
 
         RequirePermission methodAnnotation = createRequirePermission(Permission.PLAY);
 

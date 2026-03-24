@@ -3,11 +3,15 @@ package io.schnappy.chess;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ChessGameTest {
+
+    private static final UUID WHITE = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID BLACK = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
     // -----------------------------------------------------------------------
     // transition — state machine
@@ -189,27 +193,27 @@ class ChessGameTest {
     @Test
     void isPlayerInGame_whitePlayer_true() {
         ChessGame game = inProgressGame();
-        assertThat(game.isPlayerInGame(1L)).isTrue();
+        assertThat(game.isPlayerInGame(WHITE)).isTrue();
     }
 
     @Test
     void isPlayerInGame_blackPlayer_true() {
         ChessGame game = inProgressGame();
-        assertThat(game.isPlayerInGame(2L)).isTrue();
+        assertThat(game.isPlayerInGame(BLACK)).isTrue();
     }
 
     @Test
     void isPlayerInGame_otherPlayer_false() {
         ChessGame game = inProgressGame();
-        assertThat(game.isPlayerInGame(99L)).isFalse();
+        assertThat(game.isPlayerInGame(UUID.fromString("00000000-0000-0000-0000-000000000099"))).isFalse();
     }
 
     @Test
     void isPlayerInGame_waitingGame_blackNull_onlyWhiteMatches() {
         ChessGame game = waitingGame();
-        assertThat(game.isPlayerInGame(1L)).isTrue();
-        // blackPlayerId is null, so non-white should return false
-        assertThat(game.isPlayerInGame(2L)).isFalse();
+        assertThat(game.isPlayerInGame(WHITE)).isTrue();
+        // blackPlayerUuid is null, so non-white should return false
+        assertThat(game.isPlayerInGame(BLACK)).isFalse();
     }
 
     // -----------------------------------------------------------------------
@@ -233,27 +237,27 @@ class ChessGameTest {
     @Test
     void isPlayersTurn_whiteOnWhiteTurn_true() {
         ChessGame game = inProgressGame();
-        assertThat(game.isPlayersTurn(1L)).isTrue();
+        assertThat(game.isPlayersTurn(WHITE)).isTrue();
     }
 
     @Test
     void isPlayersTurn_blackOnWhiteTurn_false() {
         ChessGame game = inProgressGame();
-        assertThat(game.isPlayersTurn(2L)).isFalse();
+        assertThat(game.isPlayersTurn(BLACK)).isFalse();
     }
 
     @Test
     void isPlayersTurn_blackOnBlackTurn_true() {
         ChessGame game = inProgressGame();
         game.setFen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
-        assertThat(game.isPlayersTurn(2L)).isTrue();
+        assertThat(game.isPlayersTurn(BLACK)).isTrue();
     }
 
     @Test
     void isPlayersTurn_whiteOnBlackTurn_false() {
         ChessGame game = inProgressGame();
         game.setFen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
-        assertThat(game.isPlayersTurn(1L)).isFalse();
+        assertThat(game.isPlayersTurn(WHITE)).isFalse();
     }
 
     // -----------------------------------------------------------------------
@@ -290,7 +294,7 @@ class ChessGameTest {
 
     private ChessGame waitingGame() {
         var game = new ChessGame();
-        game.setWhitePlayerId(1L);
+        game.setWhitePlayerUuid(WHITE);
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.WAITING_FOR_OPPONENT);
         return game;
@@ -298,8 +302,8 @@ class ChessGameTest {
 
     private ChessGame inProgressGame() {
         var game = new ChessGame();
-        game.setWhitePlayerId(1L);
-        game.setBlackPlayerId(2L);
+        game.setWhitePlayerUuid(WHITE);
+        game.setBlackPlayerUuid(BLACK);
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.IN_PROGRESS);
         return game;
@@ -307,8 +311,8 @@ class ChessGameTest {
 
     private ChessGame finishedGame() {
         var game = new ChessGame();
-        game.setWhitePlayerId(1L);
-        game.setBlackPlayerId(2L);
+        game.setWhitePlayerUuid(WHITE);
+        game.setBlackPlayerUuid(BLACK);
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.FINISHED);
         game.setResult(GameResult.WHITE_WINS);

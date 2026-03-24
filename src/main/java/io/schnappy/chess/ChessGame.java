@@ -57,12 +57,12 @@ public class ChessGame {
     private UUID uuid = UUID.randomUUID();
 
     @JsonIgnore
-    @Column(name = "white_player_id", nullable = false)
-    private Long whitePlayerId;
+    @Column(name = "white_player_uuid", nullable = false)
+    private UUID whitePlayerUuid;
 
     @JsonIgnore
-    @Column(name = "black_player_id")
-    private Long blackPlayerId;
+    @Column(name = "black_player_uuid")
+    private UUID blackPlayerUuid;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "game_type", nullable = false, length = 10)
@@ -92,8 +92,8 @@ public class ChessGame {
     @Column(name = "move_count", nullable = false)
     private int moveCount;
 
-    @Column(name = "draw_offered_by")
-    private Long drawOfferedBy;
+    @Column(name = "draw_offered_by_uuid")
+    private UUID drawOfferedByUuid;
 
     @Column(name = "last_move_at")
     private Instant lastMoveAt;
@@ -123,18 +123,18 @@ public class ChessGame {
         return status == GameStatus.FINISHED || status == GameStatus.ABANDONED;
     }
 
-    public boolean isPlayerInGame(Long userId) {
-        return userId.equals(whitePlayerId) || userId.equals(blackPlayerId);
+    public boolean isPlayerInGame(UUID playerUuid) {
+        return playerUuid.equals(whitePlayerUuid) || playerUuid.equals(blackPlayerUuid);
     }
 
     public boolean isWhiteTurn() {
         return fen.contains(" w ");
     }
 
-    public boolean isPlayersTurn(Long userId) {
+    public boolean isPlayersTurn(UUID playerUuid) {
         if (isWhiteTurn()) {
-            return userId.equals(whitePlayerId);
+            return playerUuid.equals(whitePlayerUuid);
         }
-        return userId.equals(blackPlayerId);
+        return playerUuid.equals(blackPlayerUuid);
     }
 }

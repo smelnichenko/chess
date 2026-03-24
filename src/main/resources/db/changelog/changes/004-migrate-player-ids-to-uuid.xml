@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="004-1" author="chess-service">
+        <comment>Add UUID columns for player references in chess_games</comment>
+        <addColumn tableName="chess_games">
+            <column name="white_player_uuid" type="uuid"/>
+            <column name="black_player_uuid" type="uuid"/>
+            <column name="draw_offered_by_uuid" type="uuid"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="004-2" author="chess-service">
+        <comment>Populate UUID columns from chess_users lookup</comment>
+        <sql>
+            UPDATE chess_games SET white_player_uuid = (
+                SELECT uuid FROM chess_users WHERE chess_users.id = chess_games.white_player_id
+            ) WHERE white_player_id IS NOT NULL;
+
+            UPDATE chess_games SET black_player_uuid = (
+                SELECT uuid FROM chess_users WHERE chess_users.id = chess_games.black_player_id
+            ) WHERE black_player_id IS NOT NULL;
+
+            UPDATE chess_games SET draw_offered_by_uuid = (
+                SELECT uuid FROM chess_users WHERE chess_users.id = chess_games.draw_offered_by
+            ) WHERE draw_offered_by IS NOT NULL;
+        </sql>
+    </changeSet>
+
+    <changeSet id="004-3" author="chess-service">
+        <comment>Drop old Long ID columns and rename UUID columns</comment>
+        <dropIndex tableName="chess_games" indexName="idx_chess_games_white_player"/>
+        <dropIndex tableName="chess_games" indexName="idx_chess_games_black_player"/>
+        <dropColumn tableName="chess_games" columnName="white_player_id"/>
+        <dropColumn tableName="chess_games" columnName="black_player_id"/>
+        <dropColumn tableName="chess_games" columnName="draw_offered_by"/>
+    </changeSet>
+
+    <changeSet id="004-4" author="chess-service">
+        <comment>Add NOT NULL constraint and indexes on UUID columns</comment>
+        <addNotNullConstraint tableName="chess_games" columnName="white_player_uuid" columnDataType="uuid"/>
+        <createIndex tableName="chess_games" indexName="idx_chess_games_white_player_uuid">
+            <column name="white_player_uuid"/>
+        </createIndex>
+        <createIndex tableName="chess_games" indexName="idx_chess_games_black_player_uuid">
+            <column name="black_player_uuid"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

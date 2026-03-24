@@ -14,14 +14,14 @@ public interface ChessGameRepository extends JpaRepository<ChessGame, Long> {
 
     Optional<ChessGame> findByUuid(UUID uuid);
 
-    @Query("SELECT g FROM ChessGame g WHERE (g.whitePlayerId = :userId OR g.blackPlayerId = :userId) " +
+    @Query("SELECT g FROM ChessGame g WHERE (g.whitePlayerUuid = :playerUuid OR g.blackPlayerUuid = :playerUuid) " +
            "AND g.status IN (io.schnappy.chess.GameStatus.IN_PROGRESS, io.schnappy.chess.GameStatus.WAITING_FOR_OPPONENT)")
-    List<ChessGame> findActiveByUserId(@Param("userId") Long userId);
+    List<ChessGame> findActiveByPlayerUuid(@Param("playerUuid") UUID playerUuid);
 
     List<ChessGame> findByStatusOrderByCreatedAtDesc(GameStatus status);
 
-    @Query("SELECT g FROM ChessGame g WHERE (g.whitePlayerId = :userId OR g.blackPlayerId = :userId) " +
+    @Query("SELECT g FROM ChessGame g WHERE (g.whitePlayerUuid = :playerUuid OR g.blackPlayerUuid = :playerUuid) " +
            "AND g.status IN (io.schnappy.chess.GameStatus.FINISHED, io.schnappy.chess.GameStatus.ABANDONED) " +
            "ORDER BY g.updatedAt DESC")
-    Page<ChessGame> findHistoryByUserId(@Param("userId") Long userId, Pageable pageable);
+    Page<ChessGame> findHistoryByPlayerUuid(@Param("playerUuid") UUID playerUuid, Pageable pageable);
 }

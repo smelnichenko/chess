@@ -32,19 +32,19 @@ public class ChessController {
     public ResponseEntity<ChessGameDto> createGame(
             @RequestBody CreateGameRequest request,
             @RequestAttribute("gatewayUser") GatewayUser auth) {
-        Long userId = auth.userId();
+        UUID playerUuid = auth.uuid();
         ChessGame game;
         if (request.type() == GameType.AI) {
-            game = chessService.createAiGame(userId, request.difficulty() != null ? request.difficulty() : 10);
+            game = chessService.createAiGame(playerUuid, request.difficulty() != null ? request.difficulty() : 10);
         } else {
-            game = chessService.createPvpGame(userId);
+            game = chessService.createPvpGame(playerUuid);
         }
         return ResponseEntity.ok(chessService.toDto(game));
     }
 
     @GetMapping("/games")
     public List<ChessGameDto> getActiveGames(@RequestAttribute("gatewayUser") GatewayUser auth) {
-        return chessService.getActiveGames(auth.userId()).stream()
+        return chessService.getActiveGames(auth.uuid()).stream()
             .map(chessService::toDto)
             .toList();
     }
@@ -63,13 +63,13 @@ public class ChessController {
 
     @GetMapping("/games/history")
     public Page<ChessGameDto> getHistory(@RequestAttribute("gatewayUser") GatewayUser auth, Pageable pageable) {
-        return chessService.getHistory(auth.userId(), pageable)
+        return chessService.getHistory(auth.uuid(), pageable)
             .map(chessService::toDto);
     }
 
     @PostMapping("/games/{uuid}/join")
     public ChessGameDto joinGame(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
-        return chessService.toDto(chessService.joinGame(uuid, auth.userId()));
+        return chessService.toDto(chessService.joinGame(uuid, auth.uuid()));
     }
 
     @PostMapping("/games/{uuid}/move")
@@ -81,7 +81,7 @@ public class ChessController {
         if (move == null || move.isBlank()) {
             throw new IllegalArgumentException("Move is required");
         }
-        return chessService.toDto(chessService.makeMove(uuid, move.trim(), auth.userId()));
+        return chessService.toDto(chessService.makeMove(uuid, move.trim(), auth.uuid()));
     }
 
     @PostMapping("/games/{uuid}/ai-move")
@@ -93,32 +93,32 @@ public class ChessController {
         if (move == null || move.isBlank()) {
             throw new IllegalArgumentException("Move is required");
         }
-        return chessService.toDto(chessService.makeAiMove(uuid, move.trim(), auth.userId()));
+        return chessService.toDto(chessService.makeAiMove(uuid, move.trim(), auth.uuid()));
     }
 
     @PostMapping("/games/{uuid}/resign")
     public ChessGameDto resign(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
-        return chessService.toDto(chessService.resign(uuid, auth.userId()));
+        return chessService.toDto(chessService.resign(uuid, auth.uuid()));
     }
 
     @PostMapping("/games/{uuid}/draw")
     public ChessGameDto offerDraw(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
-        return chessService.toDto(chessService.offerDraw(uuid, auth.userId()));
+        return chessService.toDto(chessService.offerDraw(uuid, auth.uuid()));
     }
 
     @PostMapping("/games/{uuid}/draw/accept")
     public ChessGameDto acceptDraw(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
-        return chessService.toDto(chessService.acceptDraw(uuid, auth.userId()));
+        return chessService.toDto(chessService.acceptDraw(uuid, auth.uuid()));
     }
 
     @PostMapping("/games/{uuid}/draw/decline")
     public ChessGameDto declineDraw(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
-        return chessService.toDto(chessService.declineDraw(uuid, auth.userId()));
+        return chessService.toDto(chessService.declineDraw(uuid, auth.uuid()));
     }
 
     @DeleteMapping("/games/{uuid}")
     public ResponseEntity<Void> abandon(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
-        chessService.abandon(uuid, auth.userId());
+        chessService.abandon(uuid, auth.uuid());
         return ResponseEntity.noContent().build();
     }
 }

@@ -32,14 +32,14 @@ public class SubscriptionGuard {
         }
 
         Map<String, Object> attrs = accessor.getSessionAttributes();
-        Long userId = attrs != null ? (Long) attrs.get("userId") : null;
+        UUID userUuid = attrs != null ? (UUID) attrs.get("userUuid") : null;
 
         Matcher chessMatcher = CHESS_TOPIC.matcher(destination);
         if (chessMatcher.matches()) {
             UUID gameUuid = UUID.fromString(chessMatcher.group(1));
             var game = chessGameRepository.findByUuid(gameUuid);
-            if (userId == null || game.isEmpty() || !game.get().isPlayerInGame(userId)) {
-                log.warn("Rejected subscription to chess game {} by user {}", gameUuid, userId);
+            if (userUuid == null || game.isEmpty() || !game.get().isPlayerInGame(userUuid)) {
+                log.warn("Rejected subscription to chess game {} by user {}", gameUuid, userUuid);
                 throw new MessageDeliveryException("Not a player in game " + gameUuid);
             }
         }

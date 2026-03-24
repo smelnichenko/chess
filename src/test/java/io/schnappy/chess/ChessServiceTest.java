@@ -30,9 +30,6 @@ class ChessServiceTest {
     private ChessGameRepository gameRepository;
 
     @Mock
-    private ChessUserRepository userRepository;
-
-    @Mock
     private ChessGameCacheService cacheService;
 
     @Mock
@@ -41,25 +38,14 @@ class ChessServiceTest {
     @InjectMocks
     private ChessService chessService;
 
-    private static final Long WHITE_USER = 1L;
-    private static final Long BLACK_USER = 2L;
+    private static final UUID WHITE_USER = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID BLACK_USER = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
     @BeforeEach
     void setUp() {
         // Make repository.save() return the game it receives.
         // lenient() suppresses UnnecessaryStubbingException for tests that throw before save() is reached.
         lenient().when(gameRepository.save(any(ChessGame.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        // Stub UUID resolution for player IDs
-        lenient().when(userRepository.findById(WHITE_USER)).thenReturn(Optional.of(chessUser(WHITE_USER)));
-        lenient().when(userRepository.findById(BLACK_USER)).thenReturn(Optional.of(chessUser(BLACK_USER)));
-    }
-
-    private ChessUser chessUser(Long id) {
-        var user = new ChessUser();
-        user.setId(id);
-        user.setUuid(java.util.UUID.fromString("00000000-0000-0000-0000-" + String.format("%012d", id)));
-        return user;
     }
 
     // -----------------------------------------------------------------------
@@ -70,7 +56,7 @@ class ChessServiceTest {
     void createAiGame_validDifficulty_returnsGame() {
         ChessGame result = chessService.createAiGame(WHITE_USER, 10);
 
-        assertThat(result.getWhitePlayerId()).isEqualTo(WHITE_USER);
+        assertThat(result.getWhitePlayerUuid()).isEqualTo(WHITE_USER);
         assertThat(result.getGameType()).isEqualTo(GameType.AI);
         assertThat(result.getStatus()).isEqualTo(GameStatus.IN_PROGRESS);
         assertThat(result.getAiDifficulty()).isEqualTo(10);
@@ -111,7 +97,7 @@ class ChessServiceTest {
     void createPvpGame_returnsWaitingGame() {
         ChessGame result = chessService.createPvpGame(WHITE_USER);
 
-        assertThat(result.getWhitePlayerId()).isEqualTo(WHITE_USER);
+        assertThat(result.getWhitePlayerUuid()).isEqualTo(WHITE_USER);
         assertThat(result.getGameType()).isEqualTo(GameType.PVP);
         assertThat(result.getStatus()).isEqualTo(GameStatus.WAITING_FOR_OPPONENT);
         verify(cacheService).cache(any(ChessGameDto.class));
@@ -128,7 +114,7 @@ class ChessServiceTest {
 
         ChessGame result = chessService.joinGame(game.getUuid(), BLACK_USER);
 
-        assertThat(result.getBlackPlayerId()).isEqualTo(BLACK_USER);
+        assertThat(result.getBlackPlayerUuid()).isEqualTo(BLACK_USER);
         assertThat(result.getStatus()).isEqualTo(GameStatus.IN_PROGRESS);
         verify(kafkaProducer).publishGameEvent(any(ChessGameDto.class));
     }
@@ -150,7 +136,8 @@ class ChessServiceTest {
         UUID gameUuid = game.getUuid();
         when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.joinGame(gameUuid, 3L))
+        UUID thirdPlayer = UUID.fromString("00000000-0000-0000-0000-000000000003");
+        assertThatThrownBy(() -> chessService.joinGame(gameUuid, thirdPlayer))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Game already has an opponent");
     }
@@ -212,7 +199,8 @@ class ChessServiceTest {
         UUID gameUuid = game.getUuid();
         when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.makeMove(gameUuid, "e2e4", 99L))
+        UUID stranger = UUID.fromString("00000000-0000-0000-0000-000000000099");
+        assertThatThrownBy(() -> chessService.makeMove(gameUuid, "e2e4", stranger))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Not a player in this game");
     }
@@ -324,7 +312,8 @@ class ChessServiceTest {
         UUID gameUuid = game.getUuid();
         when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> chessService.resign(gameUuid, 99L))
+        UUID stranger = UUID.fromString("00000000-0000-0000-0000-000000000099");
+        assertThatThrownBy(() -> chessService.resign(gameUuid, stranger))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Not a player in this game");
     }
@@ -340,7 +329,7 @@ class ChessServiceTest {
 
         ChessGame result = chessService.offerDraw(game.getUuid(), WHITE_USER);
 
-        assertThat(result.getDrawOfferedBy()).isEqualTo(WHITE_USER);
+        assertThat(result.getDrawOfferedByUuid()).isEqualTo(WHITE_USER);
         verify(kafkaProducer).publishGameEvent(any(ChessGameDto.class));
     }
 
@@ -358,7 +347,7 @@ class ChessServiceTest {
     @Test
     void acceptDraw_validOffer_resultsInDraw() {
         ChessGame game = pvpInProgressGame();
-        game.setDrawOfferedBy(WHITE_USER);
+        game.setDrawOfferedByUuid(WHITE_USER);
         when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
 
         ChessGame result = chessService.acceptDraw(game.getUuid(), BLACK_USER);
@@ -382,7 +371,7 @@ class ChessServiceTest {
     @Test
     void acceptDraw_ownOffer_throws() {
         ChessGame game = pvpInProgressGame();
-        game.setDrawOfferedBy(WHITE_USER);
+        game.setDrawOfferedByUuid(WHITE_USER);
         UUID gameUuid = game.getUuid();
         when(gameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
@@ -395,12 +384,12 @@ class ChessServiceTest {
     @Test
     void declineDraw_validOffer_clearsOffer() {
         ChessGame game = pvpInProgressGame();
-        game.setDrawOfferedBy(WHITE_USER);
+        game.setDrawOfferedByUuid(WHITE_USER);
         when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
 
         ChessGame result = chessService.declineDraw(game.getUuid(), BLACK_USER);
 
-        assertThat(result.getDrawOfferedBy()).isNull();
+        assertThat(result.getDrawOfferedByUuid()).isNull();
         assertThat(result.getStatus()).isEqualTo(GameStatus.IN_PROGRESS);
     }
 
@@ -491,7 +480,7 @@ class ChessServiceTest {
     @Test
     void getActiveGames_delegatesToRepository() {
         ChessGame game = pvpInProgressGame();
-        when(gameRepository.findActiveByUserId(WHITE_USER)).thenReturn(List.of(game));
+        when(gameRepository.findActiveByPlayerUuid(WHITE_USER)).thenReturn(List.of(game));
 
         List<ChessGame> result = chessService.getActiveGames(WHITE_USER);
 
@@ -513,7 +502,7 @@ class ChessServiceTest {
     void getHistory_delegatesToRepository() {
         ChessGame game = finishedGame();
         var pageable = PageRequest.of(0, 10);
-        when(gameRepository.findHistoryByUserId(WHITE_USER, pageable))
+        when(gameRepository.findHistoryByPlayerUuid(WHITE_USER, pageable))
                 .thenReturn(new PageImpl<>(List.of(game)));
 
         var result = chessService.getHistory(WHITE_USER, pageable);
@@ -570,7 +559,7 @@ class ChessServiceTest {
 
     private ChessGame pvpWaitingGame() {
         var game = new ChessGame();
-        game.setWhitePlayerId(WHITE_USER);
+        game.setWhitePlayerUuid(WHITE_USER);
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.WAITING_FOR_OPPONENT);
         return game;
@@ -578,8 +567,8 @@ class ChessServiceTest {
 
     private ChessGame pvpInProgressGame() {
         var game = new ChessGame();
-        game.setWhitePlayerId(WHITE_USER);
-        game.setBlackPlayerId(BLACK_USER);
+        game.setWhitePlayerUuid(WHITE_USER);
+        game.setBlackPlayerUuid(BLACK_USER);
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.IN_PROGRESS);
         return game;
@@ -587,7 +576,7 @@ class ChessServiceTest {
 
     private ChessGame aiInProgressGame() {
         var game = new ChessGame();
-        game.setWhitePlayerId(WHITE_USER);
+        game.setWhitePlayerUuid(WHITE_USER);
         game.setGameType(GameType.AI);
         game.setStatus(GameStatus.IN_PROGRESS);
         game.setAiDifficulty(10);
@@ -596,8 +585,8 @@ class ChessServiceTest {
 
     private ChessGame finishedGame() {
         var game = new ChessGame();
-        game.setWhitePlayerId(WHITE_USER);
-        game.setBlackPlayerId(BLACK_USER);
+        game.setWhitePlayerUuid(WHITE_USER);
+        game.setBlackPlayerUuid(BLACK_USER);
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.FINISHED);
         game.setResult(GameResult.WHITE_WINS);

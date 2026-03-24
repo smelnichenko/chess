@@ -11,6 +11,8 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 
@@ -26,8 +28,7 @@ class GatewayAuthFilterTest {
 
     @BeforeEach
     void setUp() {
-        UserIdResolver resolver = uuid -> TEST_UUID.equals(uuid) ? 42L : null;
-        filter = new GatewayAuthFilter(resolver);
+        filter = new GatewayAuthFilter();
         SecurityContextHolder.clearContext();
     }
 
@@ -49,8 +50,7 @@ class GatewayAuthFilterTest {
 
         GatewayUser user = (GatewayUser) request.getAttribute(GatewayUser.REQUEST_ATTRIBUTE);
         assertThat(user).isNotNull();
-        assertThat(user.uuid()).isEqualTo(TEST_UUID);
-        assertThat(user.userId()).isEqualTo(42L);
+        assertThat(user.uuid()).isEqualTo(UUID.fromString(TEST_UUID));
         assertThat(user.email()).isEqualTo("user@example.com");
         assertThat(user.permissions()).containsExactlyInAnyOrder("PLAY", "CHAT");
 
@@ -82,18 +82,16 @@ class GatewayAuthFilterTest {
     }
 
     @Test
-    void withUserNotInTable_setsNullUserId() throws Exception {
+    void withMalformedUuid_treatsAsUnauthenticated() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-User-UUID", "00000000-0000-0000-0000-000000000099");
+        request.addHeader("X-User-UUID", "not-a-uuid");
         request.addHeader("X-User-Email", "user@example.com");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, filterChain);
 
-        GatewayUser user = (GatewayUser) request.getAttribute(GatewayUser.REQUEST_ATTRIBUTE);
-        assertThat(user).isNotNull();
-        assertThat(user.uuid()).isEqualTo("00000000-0000-0000-0000-000000000099");
-        assertThat(user.userId()).isNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(request.getAttribute(GatewayUser.REQUEST_ATTRIBUTE)).isNull();
         verify(filterChain).doFilter(request, response);
     }
 

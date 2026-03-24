@@ -4,7 +4,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -14,37 +13,39 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Reads X-User-* headers set by the API gateway after JWT validation.
  * Populates SecurityContext and sets GatewayUser as a request attribute.
- * Primary identifier is X-User-UUID (Keycloak subject). The Long userId
- * is resolved via {@link UserIdResolver} from the local user table.
+ * Primary identifier is X-User-UUID (Keycloak subject).
  */
 @Component
-@RequiredArgsConstructor
 public class GatewayAuthFilter extends OncePerRequestFilter {
-
-    private final UserIdResolver userIdResolver;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        String userUuid = request.getHeader("X-User-UUID");
+        String userUuidHeader = request.getHeader("X-User-UUID");
 
-        if (userUuid != null && !userUuid.isBlank()) {
+        if (userUuidHeader != null && !userUuidHeader.isBlank()) {
             String permissions = request.getHeader("X-User-Permissions");
             List<String> permList = permissions != null && !permissions.isBlank()
                     ? Arrays.asList(permissions.split(","))
                     : List.of();
 
-            Long userId = userIdResolver.resolve(userUuid);
+            UUID userUuid;
+            try {
+                userUuid = UUID.fromString(userUuidHeader.trim());
+            } catch (IllegalArgumentException _) {
+                filterChain.doFilter(request, response);
+                return;
+            }
 
             var user = new GatewayUser(
                     userUuid,
                     request.getHeader("X-User-Email"),
-                    permList,
-                    userId
+                    permList
             );
 
             request.setAttribute(GatewayUser.REQUEST_ATTRIBUTE, user);

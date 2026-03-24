@@ -28,6 +28,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class SubscriptionGuardTest {
 
+    private static final UUID WHITE = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID BLACK = UUID.fromString("00000000-0000-0000-0000-000000000002");
+
     @Mock
     private ChessGameRepository chessGameRepository;
 
@@ -37,10 +40,10 @@ class SubscriptionGuardTest {
     @Test
     void onSubscribe_playerInGame_allows() {
         UUID gameUuid = UUID.randomUUID();
-        ChessGame game = createGame(1L, 2L);
+        ChessGame game = createGame(WHITE, BLACK);
         when(chessGameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        var event = createSubscribeEvent("/topic/chess." + gameUuid, 1L);
+        var event = createSubscribeEvent("/topic/chess." + gameUuid, WHITE);
 
         assertThatCode(() -> guard.onSubscribe(event)).doesNotThrowAnyException();
     }
@@ -48,10 +51,11 @@ class SubscriptionGuardTest {
     @Test
     void onSubscribe_nonPlayerInGame_rejects() {
         UUID gameUuid = UUID.randomUUID();
-        ChessGame game = createGame(1L, 2L);
+        ChessGame game = createGame(WHITE, BLACK);
         when(chessGameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
-        var event = createSubscribeEvent("/topic/chess." + gameUuid, 99L);
+        UUID stranger = UUID.fromString("00000000-0000-0000-0000-000000000099");
+        var event = createSubscribeEvent("/topic/chess." + gameUuid, stranger);
 
         assertThatThrownBy(() -> guard.onSubscribe(event))
                 .isInstanceOf(MessageDeliveryException.class)
@@ -63,16 +67,16 @@ class SubscriptionGuardTest {
         UUID gameUuid = UUID.randomUUID();
         when(chessGameRepository.findByUuid(gameUuid)).thenReturn(Optional.empty());
 
-        var event = createSubscribeEvent("/topic/chess." + gameUuid, 1L);
+        var event = createSubscribeEvent("/topic/chess." + gameUuid, WHITE);
 
         assertThatThrownBy(() -> guard.onSubscribe(event))
                 .isInstanceOf(MessageDeliveryException.class);
     }
 
     @Test
-    void onSubscribe_nullUserId_rejects() {
+    void onSubscribe_nullUserUuid_rejects() {
         UUID gameUuid = UUID.randomUUID();
-        ChessGame game = createGame(1L, 2L);
+        ChessGame game = createGame(WHITE, BLACK);
         when(chessGameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
         var event = createSubscribeEvent("/topic/chess." + gameUuid, null);
@@ -83,7 +87,7 @@ class SubscriptionGuardTest {
 
     @Test
     void onSubscribe_nonChessTopic_ignored() {
-        var event = createSubscribeEvent("/topic/other.something", 1L);
+        var event = createSubscribeEvent("/topic/other.something", WHITE);
 
         assertThatCode(() -> guard.onSubscribe(event)).doesNotThrowAnyException();
         verify(chessGameRepository, never()).findByUuid(org.mockito.ArgumentMatchers.any());
@@ -91,7 +95,7 @@ class SubscriptionGuardTest {
 
     @Test
     void onSubscribe_nullDestination_ignored() {
-        var event = createSubscribeEvent(null, 1L);
+        var event = createSubscribeEvent(null, WHITE);
 
         assertThatCode(() -> guard.onSubscribe(event)).doesNotThrowAnyException();
     }
@@ -99,7 +103,7 @@ class SubscriptionGuardTest {
     @Test
     void onSubscribe_nullSessionAttributes_rejectsChessTopic() {
         UUID gameUuid = UUID.randomUUID();
-        ChessGame game = createGame(1L, 2L);
+        ChessGame game = createGame(WHITE, BLACK);
         when(chessGameRepository.findByUuid(gameUuid)).thenReturn(Optional.of(game));
 
         // Create event without session attributes
@@ -117,22 +121,22 @@ class SubscriptionGuardTest {
     // Helpers
     // -----------------------------------------------------------------------
 
-    private ChessGame createGame(Long whiteId, Long blackId) {
+    private ChessGame createGame(UUID whiteUuid, UUID blackUuid) {
         ChessGame game = new ChessGame();
-        game.setWhitePlayerId(whiteId);
-        game.setBlackPlayerId(blackId);
+        game.setWhitePlayerUuid(whiteUuid);
+        game.setBlackPlayerUuid(blackUuid);
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.IN_PROGRESS);
         return game;
     }
 
     private org.springframework.web.socket.messaging.SessionSubscribeEvent createSubscribeEvent(
-            String destination, Long userId) {
+            String destination, UUID userUuid) {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
         accessor.setDestination(destination);
         Map<String, Object> sessionAttrs = new HashMap<>();
-        if (userId != null) {
-            sessionAttrs.put("userId", userId);
+        if (userUuid != null) {
+            sessionAttrs.put("userUuid", userUuid);
         }
         accessor.setSessionAttributes(sessionAttrs);
         var message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());

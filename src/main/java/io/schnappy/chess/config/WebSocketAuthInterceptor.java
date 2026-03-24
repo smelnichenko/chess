@@ -1,8 +1,6 @@
 package io.schnappy.chess.config;
 
-import io.schnappy.chess.security.UserIdResolver;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -16,14 +14,11 @@ import java.util.UUID;
 
 /**
  * Reads X-User-* headers set by the API gateway for WebSocket handshake authentication.
- * Primary identifier is X-User-UUID; Long userId is resolved via {@link UserIdResolver}.
+ * Primary identifier is X-User-UUID (Keycloak subject).
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class WebSocketAuthInterceptor implements HandshakeInterceptor {
-
-    private final UserIdResolver userIdResolver;
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
@@ -35,11 +30,6 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
             if (userUuidHeader != null && !userUuidHeader.isBlank()) {
                 try {
                     UUID userUuid = UUID.fromString(userUuidHeader);
-                    Long userId = userIdResolver.resolve(userUuidHeader);
-
-                    if (userId != null) {
-                        attributes.put("userId", userId);
-                    }
                     attributes.put("userUuid", userUuid);
                     return true;
                 } catch (Exception e) {

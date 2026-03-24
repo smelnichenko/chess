@@ -13,7 +13,7 @@ import java.util.UUID;
 
 /**
  * Consumes user.events from the admin service to maintain a local user table
- * for UUID-to-Long-ID resolution in the chess service.
+ * in the chess service. Uses UUID as the primary identifier.
  */
 @Slf4j
 @Component
@@ -43,40 +43,34 @@ public class UserEventConsumer {
         Long userId = toLong(event.get("userId"));
         String email = (String) event.get("email");
         UUID uuid = toUuid(event.get("uuid"));
-        if (userId == null || email == null) return;
+        if (uuid == null || email == null) return;
 
-        var user = chessUserRepository.findById(userId).orElseGet(() -> {
+        var user = chessUserRepository.findByUuid(uuid).orElseGet(() -> {
             var u = new ChessUser();
-            u.setId(userId);
+            u.setUuid(uuid);
             return u;
         });
+        if (userId != null) {
+            user.setId(userId);
+        }
         user.setEmail(email);
         user.setEnabled(true);
-        if (uuid != null) {
-            user.setUuid(uuid);
-        }
         user.setUpdatedAt(Instant.now());
         chessUserRepository.save(user);
-        log.info("Synced chess user: {} ({})", userId, email);
+        log.info("Synced chess user: {} ({})", uuid, email);
     }
 
     private void updateEnabled(Map<String, Object> event, boolean enabled) {
-        Long userId = toLong(event.get("userId"));
         UUID uuid = toUuid(event.get("uuid"));
-        if (userId == null && uuid == null) return;
+        if (uuid == null) return;
 
-        ChessUser user;
-        if (userId != null) {
-            user = chessUserRepository.findById(userId).orElse(null);
-        } else {
-            user = chessUserRepository.findByUuid(uuid).orElse(null);
-        }
+        ChessUser user = chessUserRepository.findByUuid(uuid).orElse(null);
 
         if (user != null) {
             user.setEnabled(enabled);
             user.setUpdatedAt(Instant.now());
             chessUserRepository.save(user);
-            log.info("Chess user {} {}", user.getId(), enabled ? "enabled" : "disabled");
+            log.info("Chess user {} {}", uuid, enabled ? "enabled" : "disabled");
         }
     }
 

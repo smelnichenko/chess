@@ -6,7 +6,7 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 import tools.jackson.databind.annotation.JsonPOJOBuilder;
 
 import java.time.Instant;
-import java.util.function.Function;
+import java.util.UUID;
 
 @Value
 @Builder(toBuilder = true)
@@ -31,7 +31,7 @@ public class ChessGameDto {
     Integer aiDifficulty;
     Instant updatedAt;
 
-    public static ChessGameDto from(ChessGame game, Function<Long, String> uuidResolver) {
+    public static ChessGameDto from(ChessGame game) {
         return ChessGameDto.builder()
             .gameUuid(game.getUuid().toString())
             .fen(game.getFen())
@@ -41,15 +41,15 @@ public class ChessGameDto {
             .resultReason(game.getResultReason() != null ? game.getResultReason().name() : null)
             .gameType(game.getGameType().name())
             .moveCount(game.getMoveCount())
-            .whitePlayerUuid(resolveNullable(game.getWhitePlayerId(), uuidResolver))
-            .blackPlayerUuid(resolveNullable(game.getBlackPlayerId(), uuidResolver))
-            .drawOfferedByUuid(resolveNullable(game.getDrawOfferedBy(), uuidResolver))
+            .whitePlayerUuid(uuidToString(game.getWhitePlayerUuid()))
+            .blackPlayerUuid(uuidToString(game.getBlackPlayerUuid()))
+            .drawOfferedByUuid(uuidToString(game.getDrawOfferedByUuid()))
             .aiDifficulty(game.getAiDifficulty())
             .updatedAt(game.getUpdatedAt())
             .build();
     }
 
-    private static String resolveNullable(Long id, Function<Long, String> resolver) {
-        return id != null ? resolver.apply(id) : null;
+    private static String uuidToString(UUID uuid) {
+        return uuid != null ? uuid.toString() : null;
     }
 }

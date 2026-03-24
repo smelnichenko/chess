@@ -25,17 +25,16 @@ public class ChessService {
     private static final String GAME_NOT_IN_PROGRESS = "Game is not in progress";
 
     private final ChessGameRepository gameRepository;
-    private final ChessUserRepository userRepository;
     private final ChessGameCacheService cacheService;
     private final ChessKafkaProducer kafkaProducer;
 
     @Transactional
-    public ChessGame createAiGame(Long userId, int difficulty) {
+    public ChessGame createAiGame(UUID playerUuid, int difficulty) {
         if (difficulty < 0 || difficulty > 20) {
             throw new IllegalArgumentException("Difficulty must be between 0 and 20");
         }
         var game = new ChessGame();
-        game.setWhitePlayerId(userId);
+        game.setWhitePlayerUuid(playerUuid);
         game.setGameType(GameType.AI);
         game.setStatus(GameStatus.IN_PROGRESS);
         game.setAiDifficulty(difficulty);
@@ -45,9 +44,9 @@ public class ChessService {
     }
 
     @Transactional
-    public ChessGame createPvpGame(Long userId) {
+    public ChessGame createPvpGame(UUID playerUuid) {
         var game = new ChessGame();
-        game.setWhitePlayerId(userId);
+        game.setWhitePlayerUuid(playerUuid);
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.WAITING_FOR_OPPONENT);
         game = gameRepository.save(game);
@@ -56,15 +55,15 @@ public class ChessService {
     }
 
     @Transactional
-    public ChessGame joinGame(UUID gameUuid, Long userId) {
+    public ChessGame joinGame(UUID gameUuid, UUID playerUuid) {
         var game = findByUuid(gameUuid);
-        if (userId.equals(game.getWhitePlayerId())) {
+        if (playerUuid.equals(game.getWhitePlayerUuid())) {
             throw new IllegalArgumentException("Cannot join own game");
         }
-        if (game.getBlackPlayerId() != null) {
+        if (game.getBlackPlayerUuid() != null) {
             throw new IllegalStateException("Game already has an opponent");
         }
-        game.setBlackPlayerId(userId);
+        game.setBlackPlayerUuid(playerUuid);
         game.transition(GameEvent.OPPONENT_JOINED);
         game = gameRepository.save(game);
         var dto = toDto(game);
@@ -74,9 +73,9 @@ public class ChessService {
     }
 
     @Transactional
-    public ChessGame makeMove(UUID gameUuid, String moveStr, Long userId) {
+    public ChessGame makeMove(UUID gameUuid, String moveStr, UUID playerUuid) {
         var game = findByUuid(gameUuid);
-        validatePlayerTurn(game, userId);
+        validatePlayerTurn(game, playerUuid);
 
         Board board = new Board();
         board.loadFromFen(game.getFen());
@@ -88,7 +87,7 @@ public class ChessService {
         game.setMoveCount(game.getMoveCount() + 1);
         game.setLastMoveAt(Instant.now());
         game.setPgn(buildPgn(game.getPgn(), moveStr, game.getMoveCount()));
-        game.setDrawOfferedBy(null);
+        game.setDrawOfferedByUuid(null);
 
         if (board.isMated()) {
             game.transition(GameEvent.CHECKMATE);
@@ -121,12 +120,12 @@ public class ChessService {
     }
 
     @Transactional
-    public ChessGame makeAiMove(UUID gameUuid, String moveStr, Long userId) {
+    public ChessGame makeAiMove(UUID gameUuid, String moveStr, UUID playerUuid) {
         var game = findByUuid(gameUuid);
         if (game.getGameType() != GameType.AI) {
             throw new IllegalArgumentException("Not an AI game");
         }
-        if (!userId.equals(game.getWhitePlayerId())) {
+        if (!playerUuid.equals(game.getWhitePlayerUuid())) {
             throw new IllegalArgumentException(NOT_A_PLAYER);
         }
         if (game.isTerminal()) {
@@ -173,13 +172,13 @@ public class ChessService {
     }
 
     @Transactional
-    public ChessGame resign(UUID gameUuid, Long userId) {
+    public ChessGame resign(UUID gameUuid, UUID playerUuid) {
         var game = findByUuid(gameUuid);
-        if (!game.isPlayerInGame(userId)) {
+        if (!game.isPlayerInGame(playerUuid)) {
             throw new IllegalArgumentException(NOT_A_PLAYER);
         }
         game.transition(GameEvent.RESIGN);
-        game.setResult(userId.equals(game.getWhitePlayerId())
+        game.setResult(playerUuid.equals(game.getWhitePlayerUuid())
             ? GameResult.BLACK_WINS : GameResult.WHITE_WINS);
         game.setResultReason(GameResultReason.RESIGNATION);
         game = gameRepository.save(game);
@@ -192,13 +191,13 @@ public class ChessService {
     }
 
     @Transactional
-    public ChessGame offerDraw(UUID gameUuid, Long userId) {
+    public ChessGame offerDraw(UUID gameUuid, UUID playerUuid) {
         var game = findByUuid(gameUuid);
-        validatePlayerTurn(game, userId);
+        validatePlayerTurn(game, playerUuid);
         if (game.getGameType() != GameType.PVP) {
             throw new IllegalArgumentException("Draw offers only in PvP games");
         }
-        game.setDrawOfferedBy(userId);
+        game.setDrawOfferedByUuid(playerUuid);
         game.setUpdatedAt(Instant.now());
         game = gameRepository.save(game);
         var dto = toDto(game);
@@ -208,12 +207,12 @@ public class ChessService {
     }
 
     @Transactional
-    public ChessGame acceptDraw(UUID gameUuid, Long userId) {
+    public ChessGame acceptDraw(UUID gameUuid, UUID playerUuid) {
         var game = findByUuid(gameUuid);
-        if (!game.isPlayerInGame(userId)) {
+        if (!game.isPlayerInGame(playerUuid)) {
             throw new IllegalArgumentException(NOT_A_PLAYER);
         }
-        if (game.getDrawOfferedBy() == null || game.getDrawOfferedBy().equals(userId)) {
+        if (game.getDrawOfferedByUuid() == null || game.getDrawOfferedByUuid().equals(playerUuid)) {
             throw new IllegalArgumentException("No pending draw offer to accept");
         }
         game.transition(GameEvent.DRAW_AGREED);
@@ -227,15 +226,15 @@ public class ChessService {
     }
 
     @Transactional
-    public ChessGame declineDraw(UUID gameUuid, Long userId) {
+    public ChessGame declineDraw(UUID gameUuid, UUID playerUuid) {
         var game = findByUuid(gameUuid);
-        if (!game.isPlayerInGame(userId)) {
+        if (!game.isPlayerInGame(playerUuid)) {
             throw new IllegalArgumentException(NOT_A_PLAYER);
         }
-        if (game.getDrawOfferedBy() == null || game.getDrawOfferedBy().equals(userId)) {
+        if (game.getDrawOfferedByUuid() == null || game.getDrawOfferedByUuid().equals(playerUuid)) {
             throw new IllegalArgumentException("No pending draw offer to decline");
         }
-        game.setDrawOfferedBy(null);
+        game.setDrawOfferedByUuid(null);
         game.setUpdatedAt(Instant.now());
         game = gameRepository.save(game);
         var dto = toDto(game);
@@ -245,9 +244,9 @@ public class ChessService {
     }
 
     @Transactional
-    public ChessGame abandon(UUID gameUuid, Long userId) {
+    public ChessGame abandon(UUID gameUuid, UUID playerUuid) {
         var game = findByUuid(gameUuid);
-        if (!userId.equals(game.getWhitePlayerId())) {
+        if (!playerUuid.equals(game.getWhitePlayerUuid())) {
             throw new IllegalArgumentException("Only the creator can abandon a waiting game");
         }
         game.transition(GameEvent.ABANDON);
@@ -268,8 +267,8 @@ public class ChessService {
     }
 
     @Transactional(readOnly = true)
-    public List<ChessGame> getActiveGames(Long userId) {
-        return gameRepository.findActiveByUserId(userId);
+    public List<ChessGame> getActiveGames(UUID playerUuid) {
+        return gameRepository.findActiveByPlayerUuid(playerUuid);
     }
 
     @Transactional(readOnly = true)
@@ -278,8 +277,8 @@ public class ChessService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ChessGame> getHistory(Long userId, Pageable pageable) {
-        return gameRepository.findHistoryByUserId(userId, pageable);
+    public Page<ChessGame> getHistory(UUID playerUuid, Pageable pageable) {
+        return gameRepository.findHistoryByPlayerUuid(playerUuid, pageable);
     }
 
     private ChessGame findByUuid(UUID uuid) {
@@ -287,8 +286,8 @@ public class ChessService {
             .orElseThrow(() -> new EntityNotFoundException("Game not found: " + uuid));
     }
 
-    private void validatePlayerTurn(ChessGame game, Long userId) {
-        if (!game.isPlayerInGame(userId)) {
+    private void validatePlayerTurn(ChessGame game, UUID playerUuid) {
+        if (!game.isPlayerInGame(playerUuid)) {
             throw new IllegalArgumentException(NOT_A_PLAYER);
         }
         if (game.isTerminal()) {
@@ -297,7 +296,7 @@ public class ChessService {
         if (game.getStatus() != GameStatus.IN_PROGRESS) {
             throw new IllegalStateException(GAME_NOT_IN_PROGRESS);
         }
-        if (!game.isPlayersTurn(userId)) {
+        if (!game.isPlayersTurn(playerUuid)) {
             throw new IllegalStateException("Not your turn");
         }
     }
@@ -318,13 +317,7 @@ public class ChessService {
     }
 
     ChessGameDto toDto(ChessGame game) {
-        return ChessGameDto.from(game, this::resolveUuid);
-    }
-
-    private String resolveUuid(Long userId) {
-        return userRepository.findById(userId)
-            .map(u -> u.getUuid().toString())
-            .orElse(null);
+        return ChessGameDto.from(game);
     }
 
     private String buildPgn(String existingPgn, String move, int moveCount) {

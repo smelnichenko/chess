@@ -46,25 +46,17 @@ class ChessControllerTest {
     private GatewayUser whiteUser;
     private GatewayUser blackUser;
 
-    private static final Long WHITE_ID = 1L;
-    private static final Long BLACK_ID = 2L;
-    private static final String WHITE_UUID = "uuid-white";
-    private static final String BLACK_UUID = "uuid-black";
-
-    private static final java.util.function.Function<Long, String> UUID_RESOLVER = id -> {
-        if (WHITE_ID.equals(id)) return WHITE_UUID;
-        if (BLACK_ID.equals(id)) return BLACK_UUID;
-        return null;
-    };
+    private static final UUID WHITE_UUID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID BLACK_UUID = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
     @BeforeEach
     void setUp() {
-        whiteUser = new GatewayUser(WHITE_UUID, "white@example.com", List.of("PLAY"), WHITE_ID);
-        blackUser = new GatewayUser(BLACK_UUID, "black@example.com", List.of("PLAY"), BLACK_ID);
+        whiteUser = new GatewayUser(WHITE_UUID, "white@example.com", List.of("PLAY"));
+        blackUser = new GatewayUser(BLACK_UUID, "black@example.com", List.of("PLAY"));
 
-        // Stub toDto to build a real DTO with UUID resolution (controller delegates to service)
+        // Stub toDto to build a real DTO (controller delegates to service)
         lenient().when(chessService.toDto(any(ChessGame.class)))
-                .thenAnswer(inv -> ChessGameDto.from(inv.getArgument(0), UUID_RESOLVER));
+                .thenAnswer(inv -> ChessGameDto.from(inv.getArgument(0)));
     }
 
     // -----------------------------------------------------------------------
@@ -84,8 +76,8 @@ class ChessControllerTest {
 
     @Test
     void createGame_aiType_callsCreateAiGameWithDefaultDifficulty() {
-        ChessGame game = aiGame(WHITE_ID);
-        when(chessService.createAiGame(WHITE_ID, 10)).thenReturn(game);
+        ChessGame game = aiGame(WHITE_UUID);
+        when(chessService.createAiGame(WHITE_UUID, 10)).thenReturn(game);
 
         var request = new CreateGameRequest(GameType.AI, null);
         var response = controller.createGame(request, whiteUser);
@@ -93,30 +85,30 @@ class ChessControllerTest {
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getGameType()).isEqualTo("AI");
-        verify(chessService).createAiGame(WHITE_ID, 10);
+        verify(chessService).createAiGame(WHITE_UUID, 10);
     }
 
     @Test
     void createGame_aiTypeWithDifficulty_usesProvidedDifficulty() {
-        ChessGame game = aiGame(WHITE_ID);
-        when(chessService.createAiGame(WHITE_ID, 15)).thenReturn(game);
+        ChessGame game = aiGame(WHITE_UUID);
+        when(chessService.createAiGame(WHITE_UUID, 15)).thenReturn(game);
 
         var request = new CreateGameRequest(GameType.AI, 15);
         controller.createGame(request, whiteUser);
 
-        verify(chessService).createAiGame(WHITE_ID, 15);
+        verify(chessService).createAiGame(WHITE_UUID, 15);
     }
 
     @Test
     void createGame_pvpType_callsCreatePvpGame() {
-        ChessGame game = pvpWaitingGame(WHITE_ID);
-        when(chessService.createPvpGame(WHITE_ID)).thenReturn(game);
+        ChessGame game = pvpWaitingGame(WHITE_UUID);
+        when(chessService.createPvpGame(WHITE_UUID)).thenReturn(game);
 
         var request = new CreateGameRequest(GameType.PVP, null);
         var response = controller.createGame(request, whiteUser);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
-        verify(chessService).createPvpGame(WHITE_ID);
+        verify(chessService).createPvpGame(WHITE_UUID);
     }
 
     // -----------------------------------------------------------------------
@@ -125,8 +117,8 @@ class ChessControllerTest {
 
     @Test
     void getActiveGames_returnsMappedDtos() {
-        ChessGame game = pvpInProgressGame(WHITE_ID, BLACK_ID);
-        when(chessService.getActiveGames(WHITE_ID)).thenReturn(List.of(game));
+        ChessGame game = pvpInProgressGame(WHITE_UUID, BLACK_UUID);
+        when(chessService.getActiveGames(WHITE_UUID)).thenReturn(List.of(game));
 
         List<ChessGameDto> result = controller.getActiveGames(whiteUser);
 
@@ -136,7 +128,7 @@ class ChessControllerTest {
 
     @Test
     void getActiveGames_emptyList_returnsEmpty() {
-        when(chessService.getActiveGames(WHITE_ID)).thenReturn(List.of());
+        when(chessService.getActiveGames(WHITE_UUID)).thenReturn(List.of());
 
         List<ChessGameDto> result = controller.getActiveGames(whiteUser);
 
@@ -149,7 +141,7 @@ class ChessControllerTest {
 
     @Test
     void getOpenGames_returnsMappedDtos() {
-        ChessGame game = pvpWaitingGame(WHITE_ID);
+        ChessGame game = pvpWaitingGame(WHITE_UUID);
         when(chessService.getOpenGames()).thenReturn(List.of(game));
 
         List<ChessGameDto> result = controller.getOpenGames();
@@ -193,9 +185,9 @@ class ChessControllerTest {
 
     @Test
     void getHistory_returnsMappedPage() {
-        ChessGame game = finishedGame(WHITE_ID, BLACK_ID);
+        ChessGame game = finishedGame(WHITE_UUID, BLACK_UUID);
         var pageable = PageRequest.of(0, 10);
-        when(chessService.getHistory(WHITE_ID, pageable)).thenReturn(new PageImpl<>(List.of(game)));
+        when(chessService.getHistory(WHITE_UUID, pageable)).thenReturn(new PageImpl<>(List.of(game)));
 
         var result = controller.getHistory(whiteUser, pageable);
 
@@ -210,13 +202,13 @@ class ChessControllerTest {
     @Test
     void joinGame_delegatesToService() {
         UUID uuid = UUID.randomUUID();
-        ChessGame game = pvpInProgressGame(WHITE_ID, BLACK_ID);
-        when(chessService.joinGame(uuid, BLACK_ID)).thenReturn(game);
+        ChessGame game = pvpInProgressGame(WHITE_UUID, BLACK_UUID);
+        when(chessService.joinGame(uuid, BLACK_UUID)).thenReturn(game);
 
         ChessGameDto result = controller.joinGame(uuid, blackUser);
 
         assertThat(result.getStatus()).isEqualTo("IN_PROGRESS");
-        verify(chessService).joinGame(uuid, BLACK_ID);
+        verify(chessService).joinGame(uuid, BLACK_UUID);
     }
 
     // -----------------------------------------------------------------------
@@ -226,24 +218,24 @@ class ChessControllerTest {
     @Test
     void makeMove_validBody_delegatesToService() {
         UUID uuid = UUID.randomUUID();
-        ChessGame game = pvpInProgressGame(WHITE_ID, BLACK_ID);
-        when(chessService.makeMove(uuid, "e2e4", WHITE_ID)).thenReturn(game);
+        ChessGame game = pvpInProgressGame(WHITE_UUID, BLACK_UUID);
+        when(chessService.makeMove(uuid, "e2e4", WHITE_UUID)).thenReturn(game);
 
         ChessGameDto result = controller.makeMove(uuid, Map.of("move", "e2e4"), whiteUser);
 
         assertThat(result).isNotNull();
-        verify(chessService).makeMove(uuid, "e2e4", WHITE_ID);
+        verify(chessService).makeMove(uuid, "e2e4", WHITE_UUID);
     }
 
     @Test
     void makeMove_moveWithWhitespace_trimmed() {
         UUID uuid = UUID.randomUUID();
-        ChessGame game = pvpInProgressGame(WHITE_ID, BLACK_ID);
-        when(chessService.makeMove(uuid, "e2e4", WHITE_ID)).thenReturn(game);
+        ChessGame game = pvpInProgressGame(WHITE_UUID, BLACK_UUID);
+        when(chessService.makeMove(uuid, "e2e4", WHITE_UUID)).thenReturn(game);
 
         controller.makeMove(uuid, Map.of("move", "  e2e4  "), whiteUser);
 
-        verify(chessService).makeMove(uuid, "e2e4", WHITE_ID);
+        verify(chessService).makeMove(uuid, "e2e4", WHITE_UUID);
     }
 
     @Test
@@ -273,13 +265,13 @@ class ChessControllerTest {
     @Test
     void makeAiMove_validBody_delegatesToService() {
         UUID uuid = UUID.randomUUID();
-        ChessGame game = aiGame(WHITE_ID);
-        when(chessService.makeAiMove(uuid, "e7e5", WHITE_ID)).thenReturn(game);
+        ChessGame game = aiGame(WHITE_UUID);
+        when(chessService.makeAiMove(uuid, "e7e5", WHITE_UUID)).thenReturn(game);
 
         ChessGameDto result = controller.makeAiMove(uuid, Map.of("move", "e7e5"), whiteUser);
 
         assertThat(result).isNotNull();
-        verify(chessService).makeAiMove(uuid, "e7e5", WHITE_ID);
+        verify(chessService).makeAiMove(uuid, "e7e5", WHITE_UUID);
     }
 
     @Test
@@ -299,13 +291,13 @@ class ChessControllerTest {
     @Test
     void resign_delegatesToService() {
         UUID uuid = UUID.randomUUID();
-        ChessGame game = finishedGame(WHITE_ID, BLACK_ID);
-        when(chessService.resign(uuid, WHITE_ID)).thenReturn(game);
+        ChessGame game = finishedGame(WHITE_UUID, BLACK_UUID);
+        when(chessService.resign(uuid, WHITE_UUID)).thenReturn(game);
 
         ChessGameDto result = controller.resign(uuid, whiteUser);
 
         assertThat(result.getStatus()).isEqualTo("FINISHED");
-        verify(chessService).resign(uuid, WHITE_ID);
+        verify(chessService).resign(uuid, WHITE_UUID);
     }
 
     // -----------------------------------------------------------------------
@@ -315,38 +307,38 @@ class ChessControllerTest {
     @Test
     void offerDraw_delegatesToService() {
         UUID uuid = UUID.randomUUID();
-        ChessGame game = pvpInProgressGame(WHITE_ID, BLACK_ID);
-        game.setDrawOfferedBy(WHITE_ID);
-        when(chessService.offerDraw(uuid, WHITE_ID)).thenReturn(game);
+        ChessGame game = pvpInProgressGame(WHITE_UUID, BLACK_UUID);
+        game.setDrawOfferedByUuid(WHITE_UUID);
+        when(chessService.offerDraw(uuid, WHITE_UUID)).thenReturn(game);
 
         ChessGameDto result = controller.offerDraw(uuid, whiteUser);
 
-        assertThat(result.getDrawOfferedByUuid()).isEqualTo(WHITE_UUID);
-        verify(chessService).offerDraw(uuid, WHITE_ID);
+        assertThat(result.getDrawOfferedByUuid()).isEqualTo(WHITE_UUID.toString());
+        verify(chessService).offerDraw(uuid, WHITE_UUID);
     }
 
     @Test
     void acceptDraw_delegatesToService() {
         UUID uuid = UUID.randomUUID();
-        ChessGame game = finishedGame(WHITE_ID, BLACK_ID);
-        when(chessService.acceptDraw(uuid, BLACK_ID)).thenReturn(game);
+        ChessGame game = finishedGame(WHITE_UUID, BLACK_UUID);
+        when(chessService.acceptDraw(uuid, BLACK_UUID)).thenReturn(game);
 
         ChessGameDto result = controller.acceptDraw(uuid, blackUser);
 
         assertThat(result.getStatus()).isEqualTo("FINISHED");
-        verify(chessService).acceptDraw(uuid, BLACK_ID);
+        verify(chessService).acceptDraw(uuid, BLACK_UUID);
     }
 
     @Test
     void declineDraw_delegatesToService() {
         UUID uuid = UUID.randomUUID();
-        ChessGame game = pvpInProgressGame(WHITE_ID, BLACK_ID);
-        when(chessService.declineDraw(uuid, BLACK_ID)).thenReturn(game);
+        ChessGame game = pvpInProgressGame(WHITE_UUID, BLACK_UUID);
+        when(chessService.declineDraw(uuid, BLACK_UUID)).thenReturn(game);
 
         ChessGameDto result = controller.declineDraw(uuid, blackUser);
 
         assertThat(result.getStatus()).isEqualTo("IN_PROGRESS");
-        verify(chessService).declineDraw(uuid, BLACK_ID);
+        verify(chessService).declineDraw(uuid, BLACK_UUID);
     }
 
     // -----------------------------------------------------------------------
@@ -356,49 +348,49 @@ class ChessControllerTest {
     @Test
     void abandon_delegatesToService_returns204() {
         UUID uuid = UUID.randomUUID();
-        ChessGame game = pvpWaitingGame(WHITE_ID);
-        when(chessService.abandon(uuid, WHITE_ID)).thenReturn(game);
+        ChessGame game = pvpWaitingGame(WHITE_UUID);
+        when(chessService.abandon(uuid, WHITE_UUID)).thenReturn(game);
 
         var response = controller.abandon(uuid, whiteUser);
 
         assertThat(response.getStatusCode().value()).isEqualTo(204);
-        verify(chessService).abandon(uuid, WHITE_ID);
+        verify(chessService).abandon(uuid, WHITE_UUID);
     }
 
     // -----------------------------------------------------------------------
     // Helper factories
     // -----------------------------------------------------------------------
 
-    private ChessGame pvpWaitingGame(Long whiteId) {
+    private ChessGame pvpWaitingGame(UUID whiteUuid) {
         var game = new ChessGame();
-        game.setWhitePlayerId(whiteId);
+        game.setWhitePlayerUuid(whiteUuid);
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.WAITING_FOR_OPPONENT);
         return game;
     }
 
-    private ChessGame pvpInProgressGame(Long whiteId, Long blackId) {
+    private ChessGame pvpInProgressGame(UUID whiteUuid, UUID blackUuid) {
         var game = new ChessGame();
-        game.setWhitePlayerId(whiteId);
-        game.setBlackPlayerId(blackId);
+        game.setWhitePlayerUuid(whiteUuid);
+        game.setBlackPlayerUuid(blackUuid);
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.IN_PROGRESS);
         return game;
     }
 
-    private ChessGame aiGame(Long whiteId) {
+    private ChessGame aiGame(UUID whiteUuid) {
         var game = new ChessGame();
-        game.setWhitePlayerId(whiteId);
+        game.setWhitePlayerUuid(whiteUuid);
         game.setGameType(GameType.AI);
         game.setStatus(GameStatus.IN_PROGRESS);
         game.setAiDifficulty(10);
         return game;
     }
 
-    private ChessGame finishedGame(Long whiteId, Long blackId) {
+    private ChessGame finishedGame(UUID whiteUuid, UUID blackUuid) {
         var game = new ChessGame();
-        game.setWhitePlayerId(whiteId);
-        game.setBlackPlayerId(blackId);
+        game.setWhitePlayerUuid(whiteUuid);
+        game.setBlackPlayerUuid(blackUuid);
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.FINISHED);
         game.setResult(GameResult.WHITE_WINS);
