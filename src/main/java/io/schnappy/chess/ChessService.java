@@ -25,6 +25,7 @@ public class ChessService {
     private static final String GAME_NOT_IN_PROGRESS = "Game is not in progress";
 
     private final ChessGameRepository gameRepository;
+    private final ChessUserRepository userRepository;
     private final ChessGameCacheService cacheService;
     private final ChessKafkaProducer kafkaProducer;
 
@@ -39,7 +40,7 @@ public class ChessService {
         game.setStatus(GameStatus.IN_PROGRESS);
         game.setAiDifficulty(difficulty);
         game = gameRepository.save(game);
-        cacheService.cache(ChessGameDto.from(game));
+        cacheService.cache(toDto(game));
         return game;
     }
 
@@ -50,7 +51,7 @@ public class ChessService {
         game.setGameType(GameType.PVP);
         game.setStatus(GameStatus.WAITING_FOR_OPPONENT);
         game = gameRepository.save(game);
-        cacheService.cache(ChessGameDto.from(game));
+        cacheService.cache(toDto(game));
         return game;
     }
 
@@ -66,7 +67,7 @@ public class ChessService {
         game.setBlackPlayerId(userId);
         game.transition(GameEvent.OPPONENT_JOINED);
         game = gameRepository.save(game);
-        var dto = ChessGameDto.from(game);
+        var dto = toDto(game);
         cacheService.cache(dto);
         kafkaProducer.publishGameEvent(dto);
         return game;
@@ -107,21 +108,8 @@ public class ChessService {
         }
 
         game = gameRepository.save(game);
-        var dto = ChessGameDto.builder()
-            .gameUuid(game.getUuid().toString())
-            .fen(game.getFen())
-            .pgn(game.getPgn())
-            .status(game.getStatus().name())
-            .result(game.getResult() != null ? game.getResult().name() : null)
-            .resultReason(game.getResultReason() != null ? game.getResultReason().name() : null)
-            .gameType(game.getGameType().name())
-            .moveCount(game.getMoveCount())
+        var dto = toDto(game).toBuilder()
             .lastMove(moveStr)
-            .whitePlayerId(game.getWhitePlayerId())
-            .blackPlayerId(game.getBlackPlayerId())
-            .drawOfferedBy(game.getDrawOfferedBy())
-            .aiDifficulty(game.getAiDifficulty())
-            .updatedAt(game.getUpdatedAt())
             .build();
         cacheService.cache(dto);
 
@@ -179,7 +167,7 @@ public class ChessService {
         }
 
         game = gameRepository.save(game);
-        var dto = ChessGameDto.from(game);
+        var dto = toDto(game);
         cacheService.cache(dto);
         return game;
     }
@@ -195,7 +183,7 @@ public class ChessService {
             ? GameResult.BLACK_WINS : GameResult.WHITE_WINS);
         game.setResultReason(GameResultReason.RESIGNATION);
         game = gameRepository.save(game);
-        var dto = ChessGameDto.from(game);
+        var dto = toDto(game);
         cacheService.cache(dto);
         if (game.getGameType() == GameType.PVP) {
             kafkaProducer.publishGameEvent(dto);
@@ -213,7 +201,7 @@ public class ChessService {
         game.setDrawOfferedBy(userId);
         game.setUpdatedAt(Instant.now());
         game = gameRepository.save(game);
-        var dto = ChessGameDto.from(game);
+        var dto = toDto(game);
         cacheService.cache(dto);
         kafkaProducer.publishGameEvent(dto);
         return game;
@@ -232,7 +220,7 @@ public class ChessService {
         game.setResult(GameResult.DRAW);
         game.setResultReason(GameResultReason.AGREEMENT);
         game = gameRepository.save(game);
-        var dto = ChessGameDto.from(game);
+        var dto = toDto(game);
         cacheService.cache(dto);
         kafkaProducer.publishGameEvent(dto);
         return game;
@@ -250,7 +238,7 @@ public class ChessService {
         game.setDrawOfferedBy(null);
         game.setUpdatedAt(Instant.now());
         game = gameRepository.save(game);
-        var dto = ChessGameDto.from(game);
+        var dto = toDto(game);
         cacheService.cache(dto);
         kafkaProducer.publishGameEvent(dto);
         return game;
@@ -273,7 +261,7 @@ public class ChessService {
         return cacheService.get(gameUuid)
             .orElseGet(() -> {
                 var game = findByUuid(gameUuid);
-                var dto = ChessGameDto.from(game);
+                var dto = toDto(game);
                 cacheService.cache(dto);
                 return dto;
             });
@@ -327,6 +315,16 @@ public class ChessService {
         } catch (Exception _) {
             throw new IllegalArgumentException("Invalid move format: " + moveStr);
         }
+    }
+
+    ChessGameDto toDto(ChessGame game) {
+        return ChessGameDto.from(game, this::resolveUuid);
+    }
+
+    private String resolveUuid(Long userId) {
+        return userRepository.findById(userId)
+            .map(u -> u.getUuid().toString())
+            .orElse(null);
     }
 
     private String buildPgn(String existingPgn, String move, int moveCount) {

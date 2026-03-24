@@ -30,6 +30,9 @@ class ChessServiceTest {
     private ChessGameRepository gameRepository;
 
     @Mock
+    private ChessUserRepository userRepository;
+
+    @Mock
     private ChessGameCacheService cacheService;
 
     @Mock
@@ -46,6 +49,17 @@ class ChessServiceTest {
         // Make repository.save() return the game it receives.
         // lenient() suppresses UnnecessaryStubbingException for tests that throw before save() is reached.
         lenient().when(gameRepository.save(any(ChessGame.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Stub UUID resolution for player IDs
+        lenient().when(userRepository.findById(WHITE_USER)).thenReturn(Optional.of(chessUser(WHITE_USER)));
+        lenient().when(userRepository.findById(BLACK_USER)).thenReturn(Optional.of(chessUser(BLACK_USER)));
+    }
+
+    private ChessUser chessUser(Long id) {
+        var user = new ChessUser();
+        user.setId(id);
+        user.setUuid(java.util.UUID.fromString("00000000-0000-0000-0000-" + String.format("%012d", id)));
+        return user;
     }
 
     // -----------------------------------------------------------------------

@@ -19,6 +19,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,11 +48,23 @@ class ChessControllerTest {
 
     private static final Long WHITE_ID = 1L;
     private static final Long BLACK_ID = 2L;
+    private static final String WHITE_UUID = "uuid-white";
+    private static final String BLACK_UUID = "uuid-black";
+
+    private static final java.util.function.Function<Long, String> UUID_RESOLVER = id -> {
+        if (WHITE_ID.equals(id)) return WHITE_UUID;
+        if (BLACK_ID.equals(id)) return BLACK_UUID;
+        return null;
+    };
 
     @BeforeEach
     void setUp() {
-        whiteUser = new GatewayUser("uuid-white", "white@example.com", List.of("PLAY"), WHITE_ID);
-        blackUser = new GatewayUser("uuid-black", "black@example.com", List.of("PLAY"), BLACK_ID);
+        whiteUser = new GatewayUser(WHITE_UUID, "white@example.com", List.of("PLAY"), WHITE_ID);
+        blackUser = new GatewayUser(BLACK_UUID, "black@example.com", List.of("PLAY"), BLACK_ID);
+
+        // Stub toDto to build a real DTO with UUID resolution (controller delegates to service)
+        lenient().when(chessService.toDto(any(ChessGame.class)))
+                .thenAnswer(inv -> ChessGameDto.from(inv.getArgument(0), UUID_RESOLVER));
     }
 
     // -----------------------------------------------------------------------
@@ -307,7 +321,7 @@ class ChessControllerTest {
 
         ChessGameDto result = controller.offerDraw(uuid, whiteUser);
 
-        assertThat(result.getDrawOfferedBy()).isEqualTo(WHITE_ID);
+        assertThat(result.getDrawOfferedByUuid()).isEqualTo(WHITE_UUID);
         verify(chessService).offerDraw(uuid, WHITE_ID);
     }
 

@@ -3,10 +3,19 @@ package io.schnappy.chess;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ChessGameDtoTest {
+
+    private static final Map<Long, String> UUID_MAP = Map.of(
+            1L, "uuid-white",
+            2L, "uuid-black"
+    );
+
+    private static final Function<Long, String> UUID_RESOLVER = UUID_MAP::get;
 
     @Test
     void from_mapsAllFieldsCorrectly() {
@@ -23,7 +32,7 @@ class ChessGameDtoTest {
         game.setDrawOfferedBy(1L);
         game.setAiDifficulty(10);
 
-        ChessGameDto dto = ChessGameDto.from(game);
+        ChessGameDto dto = ChessGameDto.from(game, UUID_RESOLVER);
 
         assertThat(dto.getGameUuid()).isEqualTo(game.getUuid().toString());
         assertThat(dto.getFen()).isEqualTo("custom-fen");
@@ -33,9 +42,9 @@ class ChessGameDtoTest {
         assertThat(dto.getResultReason()).isEqualTo("CHECKMATE");
         assertThat(dto.getGameType()).isEqualTo("PVP");
         assertThat(dto.getMoveCount()).isEqualTo(2);
-        assertThat(dto.getWhitePlayerId()).isEqualTo(1L);
-        assertThat(dto.getBlackPlayerId()).isEqualTo(2L);
-        assertThat(dto.getDrawOfferedBy()).isEqualTo(1L);
+        assertThat(dto.getWhitePlayerUuid()).isEqualTo("uuid-white");
+        assertThat(dto.getBlackPlayerUuid()).isEqualTo("uuid-black");
+        assertThat(dto.getDrawOfferedByUuid()).isEqualTo("uuid-white");
         assertThat(dto.getAiDifficulty()).isEqualTo(10);
         assertThat(dto.getUpdatedAt()).isNotNull();
     }
@@ -48,12 +57,12 @@ class ChessGameDtoTest {
         game.setStatus(GameStatus.IN_PROGRESS);
         // result and resultReason are null
 
-        ChessGameDto dto = ChessGameDto.from(game);
+        ChessGameDto dto = ChessGameDto.from(game, UUID_RESOLVER);
 
         assertThat(dto.getResult()).isNull();
         assertThat(dto.getResultReason()).isNull();
-        assertThat(dto.getBlackPlayerId()).isNull();
-        assertThat(dto.getDrawOfferedBy()).isNull();
+        assertThat(dto.getBlackPlayerUuid()).isNull();
+        assertThat(dto.getDrawOfferedByUuid()).isNull();
     }
 
     @Test
@@ -64,7 +73,7 @@ class ChessGameDtoTest {
         game.setStatus(GameStatus.IN_PROGRESS);
         game.setAiDifficulty(15);
 
-        ChessGameDto dto = ChessGameDto.from(game);
+        ChessGameDto dto = ChessGameDto.from(game, UUID_RESOLVER);
 
         assertThat(dto.getGameType()).isEqualTo("AI");
         assertThat(dto.getAiDifficulty()).isEqualTo(15);
@@ -83,9 +92,9 @@ class ChessGameDtoTest {
                 .gameType("PVP")
                 .moveCount(3)
                 .lastMove("e2e4")
-                .whitePlayerId(1L)
-                .blackPlayerId(2L)
-                .drawOfferedBy(1L)
+                .whitePlayerUuid("uuid-white")
+                .blackPlayerUuid("uuid-black")
+                .drawOfferedByUuid("uuid-white")
                 .aiDifficulty(5)
                 .updatedAt(now)
                 .build();

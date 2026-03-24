@@ -39,20 +39,20 @@ public class ChessController {
         } else {
             game = chessService.createPvpGame(userId);
         }
-        return ResponseEntity.ok(ChessGameDto.from(game));
+        return ResponseEntity.ok(chessService.toDto(game));
     }
 
     @GetMapping("/games")
     public List<ChessGameDto> getActiveGames(@RequestAttribute("gatewayUser") GatewayUser auth) {
         return chessService.getActiveGames(auth.userId()).stream()
-            .map(ChessGameDto::from)
+            .map(chessService::toDto)
             .toList();
     }
 
     @GetMapping("/games/open")
     public List<ChessGameDto> getOpenGames() {
         return chessService.getOpenGames().stream()
-            .map(ChessGameDto::from)
+            .map(chessService::toDto)
             .toList();
     }
 
@@ -64,12 +64,12 @@ public class ChessController {
     @GetMapping("/games/history")
     public Page<ChessGameDto> getHistory(@RequestAttribute("gatewayUser") GatewayUser auth, Pageable pageable) {
         return chessService.getHistory(auth.userId(), pageable)
-            .map(ChessGameDto::from);
+            .map(chessService::toDto);
     }
 
     @PostMapping("/games/{uuid}/join")
     public ChessGameDto joinGame(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
-        return ChessGameDto.from(chessService.joinGame(uuid, auth.userId()));
+        return chessService.toDto(chessService.joinGame(uuid, auth.userId()));
     }
 
     @PostMapping("/games/{uuid}/move")
@@ -81,7 +81,7 @@ public class ChessController {
         if (move == null || move.isBlank()) {
             throw new IllegalArgumentException("Move is required");
         }
-        return ChessGameDto.from(chessService.makeMove(uuid, move.trim(), auth.userId()));
+        return chessService.toDto(chessService.makeMove(uuid, move.trim(), auth.userId()));
     }
 
     @PostMapping("/games/{uuid}/ai-move")
@@ -93,27 +93,27 @@ public class ChessController {
         if (move == null || move.isBlank()) {
             throw new IllegalArgumentException("Move is required");
         }
-        return ChessGameDto.from(chessService.makeAiMove(uuid, move.trim(), auth.userId()));
+        return chessService.toDto(chessService.makeAiMove(uuid, move.trim(), auth.userId()));
     }
 
     @PostMapping("/games/{uuid}/resign")
     public ChessGameDto resign(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
-        return ChessGameDto.from(chessService.resign(uuid, auth.userId()));
+        return chessService.toDto(chessService.resign(uuid, auth.userId()));
     }
 
     @PostMapping("/games/{uuid}/draw")
     public ChessGameDto offerDraw(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
-        return ChessGameDto.from(chessService.offerDraw(uuid, auth.userId()));
+        return chessService.toDto(chessService.offerDraw(uuid, auth.userId()));
     }
 
     @PostMapping("/games/{uuid}/draw/accept")
     public ChessGameDto acceptDraw(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
-        return ChessGameDto.from(chessService.acceptDraw(uuid, auth.userId()));
+        return chessService.toDto(chessService.acceptDraw(uuid, auth.userId()));
     }
 
     @PostMapping("/games/{uuid}/draw/decline")
     public ChessGameDto declineDraw(@PathVariable UUID uuid, @RequestAttribute("gatewayUser") GatewayUser auth) {
-        return ChessGameDto.from(chessService.declineDraw(uuid, auth.userId()));
+        return chessService.toDto(chessService.declineDraw(uuid, auth.userId()));
     }
 
     @DeleteMapping("/games/{uuid}")
