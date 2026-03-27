@@ -9,5 +9,6 @@
     <include file="changes/002-fix-version-column-type.xml" relativeToChangelogFile="true"/>
     <include file="changes/003-create-chess-users-table.xml" relativeToChangelogFile="true"/>
     <include file="changes/004-migrate-player-ids-to-uuid.xml" relativeToChangelogFile="true"/>
+    <include file="changes/005-chess-users-identity.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>
