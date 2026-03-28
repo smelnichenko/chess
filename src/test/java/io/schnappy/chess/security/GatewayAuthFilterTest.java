@@ -28,7 +28,7 @@ class GatewayAuthFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new GatewayAuthFilter();
+        filter = new GatewayAuthFilter((uuid, email, roles) -> {});
         SecurityContextHolder.clearContext();
     }
 
