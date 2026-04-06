@@ -24,4 +24,4 @@ Separate PostgreSQL database on shared instance.
 
 ## Full Infrastructure Docs
 
-See `schnappy/ops` repo `CLAUDE.md` for complete infrastructure documentation.
+See `schnappy/ops` repo `CLAUDE.md` for complete infrastructure documentation. 
