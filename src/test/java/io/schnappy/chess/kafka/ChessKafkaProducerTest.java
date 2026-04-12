@@ -69,13 +69,11 @@ class ChessKafkaProducerTest {
                 .moveCount(2)
                 .build();
 
-        CompletableFuture<Object> future = new CompletableFuture<>();
-        @SuppressWarnings("unchecked")
-        CompletableFuture<org.springframework.kafka.support.SendResult<String, ChessGameDto>> typedFuture =
-                (CompletableFuture) future;
+        CompletableFuture<org.springframework.kafka.support.SendResult<String, ChessGameDto>> future =
+                new CompletableFuture<>();
 
         when(kafkaTemplate.send("chess.moves", "game-uuid-3", dto))
-                .thenReturn(typedFuture);
+                .thenReturn(future);
 
         producer.publishGameEvent(dto);
 
