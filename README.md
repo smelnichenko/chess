@@ -4,11 +4,11 @@ Chess game service for pmon.dev supporting PvP and AI games with real-time moves
 
 ## Architecture
 
-Receives authenticated requests via the API gateway. Uses WebSocket for real-time move delivery, Kafka for event fan-out, Redis for game state caching, and PostgreSQL for persistent game storage.
+Receives authenticated requests via the API gateway. Uses WebSocket for real-time move delivery, Kafka for event fan-out, Valkey for game state caching, and PostgreSQL for persistent game storage.
 
 ```
 API Gateway --> Chess (this service) --> PostgreSQL (monitor_chess DB)
-                                     --> Redis (game cache)
+                                     --> Valkey (game cache)
                                      --> Kafka (event fan-out)
             <-- WebSocket (real-time moves)
 ```
@@ -17,7 +17,7 @@ API Gateway --> Chess (this service) --> PostgreSQL (monitor_chess DB)
 
 - Java 25, Spring Boot 4.0, Gradle 9.3
 - PostgreSQL 17 (game state persistence)
-- Redis (active game caching)
+- Valkey (active game caching)
 - Kafka (game event fan-out)
 - WebSocket (real-time move delivery)
 - Liquibase (schema migrations)
