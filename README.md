@@ -4,14 +4,15 @@ Chess backend for pmon.dev — PvP and human-vs-AI games with server-side move v
 
 ## Architecture
 
-Behind the Istio ingress gateway. Istio terminates TLS, validates the Keycloak JWT (including on the WebSocket upgrade), and forwards to the sidecar. Every move is replayed on the server with `chesslib` before being persisted, cached in Valkey, and fanned out via Kafka → STOMP. Human-vs-AI games run Stockfish in a Web Worker on the client and submit the result through a dedicated endpoint; the server still validates the position regardless.
+Behind the Istio ingress gateway. Istio terminates TLS, validates the Keycloak JWT, and forwards to the sidecar. Every move is replayed on the server with `chesslib` before being persisted, cached in Valkey, and published as a Kafka envelope. Centrifugo (separate workload) consumes the envelope topic and pushes the new game state to subscribed clients over WebSocket. Human-vs-AI games run Stockfish in a Web Worker on the client and submit the result through a dedicated endpoint; the server still validates the position regardless.
 
 ```
 Istio ingress --> sidecar --> Chess --> PostgreSQL  (chess DB, persistent state)
                                     --> Valkey      (active-game cache)
-                                    --> Kafka       (chess.moves: fan-out)
-              <-- WebSocket (STOMP/SockJS, /topic/chess.{uuid})
+                                    --> Kafka       (events.chess.moves → Centrifugo fan-out)
               <-- Kafka <-- Admin       (user.events sync)
+
+(Real-time push to clients goes Kafka → Centrifugo → browser, not through chess-service.)
 ```
 
 ## Tech Stack
@@ -19,8 +20,7 @@ Istio ingress --> sidecar --> Chess --> PostgreSQL  (chess DB, persistent state)
 - Java 25, Spring Boot 4.0, Gradle 9.3
 - PostgreSQL 17 — game state + result history
 - Valkey — active-game cache (`spring-boot-starter-data-redis`)
-- Kafka — `chess.moves` fan-out, `user.events` consumer
-- Spring WebSocket — STOMP simple broker over SockJS for real-time moves
+- Kafka — `events.chess.moves` (envelope topic for Centrifugo), `user.events` consumer
 - chesslib (`com.github.bhlangonijr:chesslib`) — server-side board replay and validation
 - Liquibase — schema migrations
 - OpenTelemetry — traces to Tempo, metrics to Prometheus → Mimir
@@ -45,9 +45,20 @@ All endpoints sit under `/api/chess/games` and require the `PLAY` permission:
 | `POST` | `/{uuid}/draw` / `…/accept` / `…/decline` | Draw offer flow |
 | `DELETE` | `/{uuid}` | Abort/cleanup |
 
-## Real-time
+## Real-time fan-out
 
-Clients subscribe to `/topic/chess.{gameUuid}` after STOMP `CONNECT`. `WebSocketAuthInterceptor` validates the JWT on connect and `SubscriptionGuard` rejects subscriptions from non-participants.
+This service does NOT terminate WebSocket connections. After every state change (move, resign, draw outcome) the service publishes a publication envelope to `events.chess.moves` with header `x-centrifugo-channels: chess:game:<uuid>`. Centrifugo's Kafka async-consumer picks it up and fans out to subscribers.
+
+Browsers obtain a per-channel subscription token from `admin` (`POST /api/realtime/sub-token`); admin checks membership against `chess`'s `/internal/membership` endpoint before signing.
+
+## Internal endpoint (admin-only)
+
+```
+GET /internal/membership?user=<uuid>&channel=chess:game:<uuid>
+  → 200 if user is white or black, 404 otherwise
+```
+
+mTLS-only path; mesh-level Istio AuthorizationPolicy DENY rejects every source SA except admin.
 
 ## Development
 
@@ -73,4 +84,4 @@ Deployed to kubeadm via Argo CD GitOps:
 4. Woodpecker commits the new tag to `schnappy/infra`
 5. Argo CD syncs the Application
 
-Production at `https://pmon.dev/api/chess/*` in the `schnappy-production-apps` namespace.
+Production at `https://pmon.dev/api/chess/*` in the `schnappy-production` namespace. Real-time WebSocket endpoint at `wss://pmon.dev/realtime/connection/websocket` (Centrifugo).
