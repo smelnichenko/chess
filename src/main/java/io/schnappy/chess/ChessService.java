@@ -2,7 +2,6 @@ package io.schnappy.chess;
 
 import com.github.bhlangonijr.chesslib.Board;
 import com.github.bhlangonijr.chesslib.move.Move;
-import io.schnappy.chess.kafka.ChessKafkaProducer;
 import io.schnappy.chess.kafka.EventEnvelope;
 import io.schnappy.chess.kafka.EventEnvelopeProducer;
 import jakarta.persistence.EntityNotFoundException;
@@ -30,7 +29,6 @@ public class ChessService {
 
     private final ChessGameRepository gameRepository;
     private final ChessGameCacheService cacheService;
-    private final ChessKafkaProducer kafkaProducer;
     private final EventEnvelopeProducer envelopeProducer;
 
     @Transactional
@@ -73,7 +71,6 @@ public class ChessService {
         game = gameRepository.save(game);
         var dto = toDto(game);
         cacheService.cache(dto);
-        kafkaProducer.publishGameEvent(dto);
         publishEnvelope("game.started", dto, playerUuid);
         return game;
     }
@@ -118,9 +115,6 @@ public class ChessService {
             .build();
         cacheService.cache(dto);
 
-        if (game.getGameType() == GameType.PVP) {
-            kafkaProducer.publishGameEvent(dto);
-        }
         publishEnvelope(game.isTerminal() ? EVENT_GAME_ENDED : EVENT_MOVE_MADE, dto, playerUuid);
 
         return game;
@@ -192,9 +186,6 @@ public class ChessService {
         game = gameRepository.save(game);
         var dto = toDto(game);
         cacheService.cache(dto);
-        if (game.getGameType() == GameType.PVP) {
-            kafkaProducer.publishGameEvent(dto);
-        }
         publishEnvelope("game.resigned", dto, playerUuid);
         return game;
     }
@@ -211,7 +202,6 @@ public class ChessService {
         game = gameRepository.save(game);
         var dto = toDto(game);
         cacheService.cache(dto);
-        kafkaProducer.publishGameEvent(dto);
         publishEnvelope("game.draw-offered", dto, playerUuid);
         return game;
     }
@@ -231,7 +221,6 @@ public class ChessService {
         game = gameRepository.save(game);
         var dto = toDto(game);
         cacheService.cache(dto);
-        kafkaProducer.publishGameEvent(dto);
         publishEnvelope(EVENT_GAME_ENDED, dto, playerUuid);
         return game;
     }
@@ -250,7 +239,6 @@ public class ChessService {
         game = gameRepository.save(game);
         var dto = toDto(game);
         cacheService.cache(dto);
-        kafkaProducer.publishGameEvent(dto);
         publishEnvelope("game.draw-declined", dto, playerUuid);
         return game;
     }

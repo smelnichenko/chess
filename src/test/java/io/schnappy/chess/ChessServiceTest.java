@@ -1,6 +1,5 @@
 package io.schnappy.chess;
 
-import io.schnappy.chess.kafka.ChessKafkaProducer;
 import io.schnappy.chess.kafka.EventEnvelopeProducer;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,9 +31,6 @@ class ChessServiceTest {
 
     @Mock
     private ChessGameCacheService cacheService;
-
-    @Mock
-    private ChessKafkaProducer kafkaProducer;
 
     @Mock
     private EventEnvelopeProducer envelopeProducer;
@@ -120,7 +116,7 @@ class ChessServiceTest {
 
         assertThat(result.getBlackPlayerUuid()).isEqualTo(BLACK_USER);
         assertThat(result.getStatus()).isEqualTo(GameStatus.IN_PROGRESS);
-        verify(kafkaProducer).publishGameEvent(any(ChessGameDto.class));
+        verify(envelopeProducer).publish(any(), any(), any());
     }
 
     @Test
@@ -170,7 +166,7 @@ class ChessServiceTest {
         assertThat(result.getFen()).isNotEqualTo("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         assertThat(result.getPgn()).contains("e2e4");
         assertThat(result.getMoveCount()).isEqualTo(1);
-        verify(kafkaProducer).publishGameEvent(any(ChessGameDto.class));
+        verify(envelopeProducer).publish(any(), any(), any());
     }
 
     @Test
@@ -218,16 +214,6 @@ class ChessServiceTest {
         assertThatThrownBy(() -> chessService.makeMove(gameUuid, "e2e4", WHITE_USER))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Game is already finished");
-    }
-
-    @Test
-    void makeMove_aiGame_noKafkaPublish() {
-        ChessGame game = aiInProgressGame();
-        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
-
-        chessService.makeMove(game.getUuid(), "e2e4", WHITE_USER);
-
-        verify(kafkaProducer, never()).publishGameEvent(any());
     }
 
     // -----------------------------------------------------------------------
@@ -296,7 +282,7 @@ class ChessServiceTest {
         assertThat(result.getResult()).isEqualTo(GameResult.BLACK_WINS);
         assertThat(result.getResultReason()).isEqualTo(GameResultReason.RESIGNATION);
         assertThat(result.getStatus()).isEqualTo(GameStatus.FINISHED);
-        verify(kafkaProducer).publishGameEvent(any(ChessGameDto.class));
+        verify(envelopeProducer).publish(any(), any(), any());
     }
 
     @Test
@@ -334,7 +320,7 @@ class ChessServiceTest {
         ChessGame result = chessService.offerDraw(game.getUuid(), WHITE_USER);
 
         assertThat(result.getDrawOfferedByUuid()).isEqualTo(WHITE_USER);
-        verify(kafkaProducer).publishGameEvent(any(ChessGameDto.class));
+        verify(envelopeProducer).publish(any(), any(), any());
     }
 
     @Test
