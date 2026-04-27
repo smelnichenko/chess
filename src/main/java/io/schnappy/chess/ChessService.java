@@ -3,6 +3,8 @@ package io.schnappy.chess;
 import com.github.bhlangonijr.chesslib.Board;
 import com.github.bhlangonijr.chesslib.move.Move;
 import io.schnappy.chess.kafka.ChessKafkaProducer;
+import io.schnappy.chess.kafka.EventEnvelope;
+import io.schnappy.chess.kafka.EventEnvelopeProducer;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,10 +25,13 @@ public class ChessService {
     private static final String NOT_A_PLAYER = "Not a player in this game";
     private static final String GAME_ALREADY_FINISHED = "Game is already finished";
     private static final String GAME_NOT_IN_PROGRESS = "Game is not in progress";
+    private static final String EVENT_GAME_ENDED = "game.ended";
+    private static final String EVENT_MOVE_MADE = "move.made";
 
     private final ChessGameRepository gameRepository;
     private final ChessGameCacheService cacheService;
     private final ChessKafkaProducer kafkaProducer;
+    private final EventEnvelopeProducer envelopeProducer;
 
     @Transactional
     public ChessGame createAiGame(UUID playerUuid, int difficulty) {
@@ -69,6 +74,7 @@ public class ChessService {
         var dto = toDto(game);
         cacheService.cache(dto);
         kafkaProducer.publishGameEvent(dto);
+        publishEnvelope("game.started", dto, playerUuid);
         return game;
     }
 
@@ -115,6 +121,7 @@ public class ChessService {
         if (game.getGameType() == GameType.PVP) {
             kafkaProducer.publishGameEvent(dto);
         }
+        publishEnvelope(game.isTerminal() ? EVENT_GAME_ENDED : EVENT_MOVE_MADE, dto, playerUuid);
 
         return game;
     }
@@ -168,6 +175,7 @@ public class ChessService {
         game = gameRepository.save(game);
         var dto = toDto(game);
         cacheService.cache(dto);
+        publishEnvelope(game.isTerminal() ? EVENT_GAME_ENDED : EVENT_MOVE_MADE, dto, playerUuid);
         return game;
     }
 
@@ -187,6 +195,7 @@ public class ChessService {
         if (game.getGameType() == GameType.PVP) {
             kafkaProducer.publishGameEvent(dto);
         }
+        publishEnvelope("game.resigned", dto, playerUuid);
         return game;
     }
 
@@ -203,6 +212,7 @@ public class ChessService {
         var dto = toDto(game);
         cacheService.cache(dto);
         kafkaProducer.publishGameEvent(dto);
+        publishEnvelope("game.draw-offered", dto, playerUuid);
         return game;
     }
 
@@ -222,6 +232,7 @@ public class ChessService {
         var dto = toDto(game);
         cacheService.cache(dto);
         kafkaProducer.publishGameEvent(dto);
+        publishEnvelope(EVENT_GAME_ENDED, dto, playerUuid);
         return game;
     }
 
@@ -240,6 +251,7 @@ public class ChessService {
         var dto = toDto(game);
         cacheService.cache(dto);
         kafkaProducer.publishGameEvent(dto);
+        publishEnvelope("game.draw-declined", dto, playerUuid);
         return game;
     }
 
@@ -318,6 +330,14 @@ public class ChessService {
 
     ChessGameDto toDto(ChessGame game) {
         return ChessGameDto.from(game);
+    }
+
+    private void publishEnvelope(String type, ChessGameDto dto, UUID actor) {
+        envelopeProducer.publish(
+            "chess:game:" + dto.getGameUuid(),
+            dto.getGameUuid(),
+            EventEnvelope.of(type, "game:" + dto.getGameUuid(), actor.toString(), dto)
+        );
     }
 
     private String buildPgn(String existingPgn, String move, int moveCount) {

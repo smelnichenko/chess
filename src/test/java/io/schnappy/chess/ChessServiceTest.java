@@ -1,6 +1,7 @@
 package io.schnappy.chess;
 
 import io.schnappy.chess.kafka.ChessKafkaProducer;
+import io.schnappy.chess.kafka.EventEnvelopeProducer;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,9 @@ class ChessServiceTest {
 
     @Mock
     private ChessKafkaProducer kafkaProducer;
+
+    @Mock
+    private EventEnvelopeProducer envelopeProducer;
 
     @InjectMocks
     private ChessService chessService;
