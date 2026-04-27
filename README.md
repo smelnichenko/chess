@@ -4,23 +4,23 @@ Chess game service for pmon.dev supporting PvP and AI games with real-time moves
 
 ## Architecture
 
-Receives authenticated requests via the API gateway. Uses WebSocket for real-time move delivery, Kafka for event fan-out, Valkey for game state caching, and PostgreSQL for persistent game storage.
+Behind Istio ingress; Istio validates Keycloak JWTs and forwards to the sidecar. Uses WebSocket for real-time move delivery, Kafka for event fan-out, Valkey for active-game state caching, and PostgreSQL for persistent game storage.
 
 ```
-API Gateway --> Chess (this service) --> PostgreSQL (monitor_chess DB)
-                                     --> Valkey (game cache)
-                                     --> Kafka (event fan-out)
-            <-- WebSocket (real-time moves)
+Istio ingress --> sidecar --> Chess --> PostgreSQL (chess DB)
+                                    --> Valkey    (active game cache)
+                                    --> Kafka     (event fan-out)
+              <-- WebSocket (real-time moves)
 ```
 
 ## Tech Stack
 
 - Java 25, Spring Boot 4.0, Gradle 9.3
-- PostgreSQL 17 (game state persistence)
-- Valkey (active game caching)
-- Kafka (game event fan-out)
-- WebSocket (real-time move delivery)
-- Liquibase (schema migrations)
+- PostgreSQL 17 — game state persistence
+- Valkey — active-game cache
+- Kafka — game event fan-out
+- Spring WebSocket — real-time move delivery
+- Liquibase — schema migrations
 - SpringDoc OpenAPI
 
 ## Development
@@ -41,10 +41,10 @@ task dev:infra
 
 Deployed to kubeadm via Argo CD GitOps:
 
-1. Push to master triggers Woodpecker CD pipeline
-2. `./gradlew test` runs, then Kaniko builds the container image
+1. Push to master triggers Woodpecker CD
+2. `./gradlew clean check` then Kaniko builds the image
 3. Image pushed to Forgejo registry at `git.pmon.dev`
-4. Woodpecker commits new image tag to the `schnappy/infra` repo
-5. Argo CD detects the change and syncs the Application
+4. Woodpecker commits the new tag to `schnappy/infra`
+5. Argo CD syncs the Application
 
-Production at `https://pmon.dev/api/chess/*` in the `monitor` namespace.
+Production at `https://pmon.dev/api/chess/*` in the `schnappy-production-apps` namespace.
