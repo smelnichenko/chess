@@ -11,8 +11,9 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Checks permissions from gateway-provided X-User-Permissions header.
- * No JWT parsing, no Redis — gateway handles token validation.
+ * Checks permissions from the authenticated {@link GatewayUser} request
+ * attribute, which {@code GatewayAuthFilter} populates from the validated
+ * Keycloak token's claims.
  */
 @Aspect
 @Component

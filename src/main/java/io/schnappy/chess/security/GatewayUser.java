@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * User identity extracted from gateway X-User-* headers.
- * Primary identifier is uuid (from Keycloak JWT subject).
+ * User identity derived from the validated Keycloak access token.
+ * Primary identifier is uuid (from the JWT subject claim).
  */
 public record GatewayUser(
         UUID uuid,

@@ -1,6 +1,6 @@
 package io.schnappy.chess.config;
 
-import io.schnappy.chess.security.GatewayAuthFilter;
+import io.schnappy.chess.filter.GatewayAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -13,8 +13,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 /**
  * Security config for downstream service behind the Istio ingress.
- * Istio validates the Keycloak JWT at the edge; GatewayAuthFilter reads
- * the propagated token and populates the SecurityContext for handlers.
+ * Istio validates the Keycloak JWT at the edge; GatewayAuthFilter independently
+ * re-validates the propagated token's signature (defense-in-depth against
+ * east-west impersonation) and populates the SecurityContext for handlers.
  */
 @Configuration
 @EnableWebSecurity
