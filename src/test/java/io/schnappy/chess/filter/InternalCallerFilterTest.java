@@ -103,6 +103,100 @@ class InternalCallerFilterTest {
         assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_OK);
     }
 
+    @Test
+    void nullConfig_disablesAndProceeds() throws Exception {
+        // A null property collapses to "" so the check is disabled.
+        var filter = new InternalCallerFilter(null);
+        var request = internalRequest();
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(chain.getRequest()).isSameAs(request);
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_OK);
+    }
+
+    @Test
+    void emptyServletPath_fallsBackToRequestUri() throws Exception {
+        // When servletPath is empty the filter must derive the path from the URI
+        // so /internal traffic is still guarded.
+        var filter = new InternalCallerFilter(ADMIN);
+        var request = new MockHttpServletRequest("GET", "/internal/membership");
+        request.setServletPath("");
+        request.setRequestURI("/internal/membership");
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        // No XFCC header → guarded path rejects with 403 (proves it was filtered).
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_FORBIDDEN);
+        assertThat(chain.getRequest()).isNull();
+    }
+
+    @Test
+    void xfccWithoutUriKey_forbidden() throws Exception {
+        // The trailing element carries no URI= pair, so no caller can be derived.
+        var filter = new InternalCallerFilter(ADMIN);
+        var request = internalRequest();
+        request.addHeader(XFCC_HEADER, "By=spiffe://x;Hash=abc123;Subject=\"\"");
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_FORBIDDEN);
+        assertThat(chain.getRequest()).isNull();
+    }
+
+    @Test
+    void xfccElementWithBarePair_isSkipped() throws Exception {
+        // A pair with no '=' is ignored; the URI= pair after it still matches.
+        var filter = new InternalCallerFilter(ADMIN);
+        var request = internalRequest();
+        request.addHeader(XFCC_HEADER, "bare;URI=" + ADMIN);
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_OK);
+        assertThat(chain.getRequest()).isSameAs(request);
+    }
+
+    @Test
+    void quotedUriValue_isUnquotedBeforeCompare() throws Exception {
+        // Istio may quote the URI value; the comparison must strip the quotes.
+        var filter = new InternalCallerFilter(ADMIN);
+        var request = internalRequest();
+        request.addHeader(XFCC_HEADER, "By=spiffe://x;Hash=abc;URI=\"" + ADMIN + "\"");
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_OK);
+        assertThat(chain.getRequest()).isSameAs(request);
+    }
+
+    @Test
+    void onlyEmptyXfccElements_yieldNoCaller_forbidden() throws Exception {
+        // A non-blank header that splits into only empty elements → lastElement
+        // returns null → no caller → 403. The leading commas keep it past the
+        // isBlank() short-circuit so the element scan itself is exercised.
+        var filter = new InternalCallerFilter(ADMIN);
+        var request = internalRequest();
+        request.addHeader(XFCC_HEADER, ", ,");
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_FORBIDDEN);
+        assertThat(chain.getRequest()).isNull();
+    }
+
     private static MockHttpServletRequest internalRequest() {
         var request = new MockHttpServletRequest("GET", "/internal/membership");
         request.setServletPath("/internal/membership");

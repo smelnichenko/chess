@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -160,6 +161,32 @@ class GatewayAuthFilterTest {
         assertThat(user.uuid()).isEqualTo(TEST_UUID);
         assertThat(user.email()).isEqualTo("real@example.com");
         assertThat(user.permissions()).containsExactlyInAnyOrder("PLAY", "CHAT");
+    }
+
+    @Test
+    void nullSubject_doesNotAuthenticate() throws Exception {
+        // A token whose sub claim is absent must not produce an authentication.
+        when(jwtDecoder.decode(anyString())).thenReturn(
+                Jwt.withTokenValue("t").header("alg", "none").claim("email", "x@example.com").build());
+
+        filter.doFilterInternal(bearerRequest(), new MockHttpServletResponse(), filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
+    void recentlySeenUser_skipsRepeatProvisioning() throws Exception {
+        // First call provisions; a second call within the TTL must hit the
+        // known-user short-circuit and not provision again.
+        var provisionCount = new AtomicInteger();
+        var countingFilter = new GatewayAuthFilter(jwtDecoder,
+                (uuid, email, roles) -> provisionCount.incrementAndGet());
+        when(jwtDecoder.decode(anyString())).thenReturn(jwt(TEST_UUID, "seen@example.com", List.of("PLAY")));
+
+        countingFilter.doFilterInternal(bearerRequest(), new MockHttpServletResponse(), filterChain);
+        countingFilter.doFilterInternal(bearerRequest(), new MockHttpServletResponse(), filterChain);
+
+        assertThat(provisionCount.get()).isEqualTo(1);
     }
 
     @Test

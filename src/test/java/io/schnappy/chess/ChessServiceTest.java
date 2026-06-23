@@ -216,6 +216,23 @@ class ChessServiceTest {
                 .hasMessageContaining("Game is already finished");
     }
 
+    @Test
+    void makeMove_checkmate_endsGameAndPublishesEnded() {
+        // White rook delivers back-rank mate; the move terminates the game so the
+        // terminal branch of publishEnvelope must fire instead of move.made.
+        ChessGame game = pvpInProgressGame();
+        game.setFen("6k1/5ppp/8/8/8/8/8/R6K w - - 0 1");
+        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+
+        ChessGame result = chessService.makeMove(game.getUuid(), "a1a8", WHITE_USER);
+
+        assertThat(result.getStatus()).isEqualTo(GameStatus.FINISHED);
+        assertThat(result.getResult()).isEqualTo(GameResult.WHITE_WINS);
+        assertThat(result.getResultReason()).isEqualTo(GameResultReason.CHECKMATE);
+        assertThat(result.isTerminal()).isTrue();
+        verify(envelopeProducer).publish(any(), any(), any());
+    }
+
     // -----------------------------------------------------------------------
     // makeAiMove
     // -----------------------------------------------------------------------
@@ -254,6 +271,23 @@ class ChessServiceTest {
         assertThatThrownBy(() -> chessService.makeAiMove(gameUuid, "e7e5", BLACK_USER))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Not a player in this game");
+    }
+
+    @Test
+    void makeAiMove_checkmate_endsGameAndPublishesEnded() {
+        // Black (the AI) plays a back-rank mate. The terminal branch of
+        // publishEnvelope must fire — game.ended, not move.made.
+        ChessGame game = aiInProgressGame();
+        game.setFen("r5k1/8/8/8/8/8/5PPP/6K1 b - - 0 1");
+        when(gameRepository.findByUuid(game.getUuid())).thenReturn(Optional.of(game));
+
+        ChessGame result = chessService.makeAiMove(game.getUuid(), "a8a1", WHITE_USER);
+
+        assertThat(result.getStatus()).isEqualTo(GameStatus.FINISHED);
+        assertThat(result.getResult()).isEqualTo(GameResult.BLACK_WINS);
+        assertThat(result.getResultReason()).isEqualTo(GameResultReason.CHECKMATE);
+        assertThat(result.isTerminal()).isTrue();
+        verify(envelopeProducer).publish(any(), any(), any());
     }
 
     @Test
