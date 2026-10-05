@@ -5,7 +5,9 @@ import com.nimbusds.jose.jwk.JWKSelector;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import io.schnappy.chess.ChessService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.domain.PageRequest;
@@ -29,7 +31,14 @@ class StartupWarmUpTest {
     @SuppressWarnings("unchecked")
     private final JWKSource<SecurityContext> keys = mock(JWKSource.class);
     private final ChessService chessService = mock(ChessService.class);
-    private final StartupWarmUp warmUp = new StartupWarmUp(keys, chessService);
+    @SuppressWarnings("unchecked")
+    private final ObjectProvider<JWKSource<SecurityContext>> keySource = mock(ObjectProvider.class);
+    private final StartupWarmUp warmUp = new StartupWarmUp(keySource, chessService);
+
+    @BeforeEach
+    void aKeySource() {
+        when(keySource.getIfAvailable()).thenReturn(keys);
+    }
 
     @Test
     void fetchesTheKeysAndRunsTheGameQueriesForNoOne() throws KeySourceException {
@@ -61,5 +70,14 @@ class StartupWarmUpTest {
         var args = new DefaultApplicationArguments();
 
         assertThatCode(() -> warmUp.run(args)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void withoutAKeySourceTheQueriesStillRun() {
+        when(keySource.getIfAvailable()).thenReturn(null);
+        var args = new DefaultApplicationArguments();
+
+        assertThatCode(() -> warmUp.run(args)).doesNotThrowAnyException();
+        verify(chessService).getActiveGames(StartupWarmUp.NO_PLAYER);
     }
 }
