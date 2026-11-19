@@ -40,7 +40,6 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .requestMatchers("/ws/**").permitAll()
                 // mTLS-fronted; Istio AuthZ DENY for non-admin source SAs.
                 .requestMatchers("/internal/**").permitAll()
                 .anyRequest().authenticated()
