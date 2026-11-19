@@ -19,7 +19,6 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.errors.TopicExistsException;
-import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
@@ -40,6 +39,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.Environment;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.listener.RecordInterceptor;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -58,6 +58,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -71,6 +72,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -78,16 +80,14 @@ import static org.mockito.Mockito.when;
 /**
  * The chess-user listener against a real broker, with production's Kafka settings (application.yml) and error handler
  * (KafkaErrorHandlerConfig) - only the back-off shortened. Postgres down - past the budget of any other failure - costs
- * no user event; a failure no store explains past its retries and a value that is not JSON each end on user.events.DLT,
+ * no user event; a failure no store explains past its retries, a value that is not JSON and an event naming no user each
+ * end on user.events.DLT,
  * with headers the backup can dump, each counted once, and the partition moves on.
  */
 @SpringBootTest(
         classes = {KafkaConfig.class, KafkaErrorHandlerConfig.class, UserEventConsumer.class,
                 UserEventRetryKafkaTest.Deliveries.class, SimpleMeterRegistry.class},
         properties = {
-                // a configuration naming the bare JsonDeserializer (as monitor's ConfigMap did): the handler's config
-                // must wrap it whatever the configuration says
-                "spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JsonDeserializer",
                 // waits of 10 ms doubling to 50 ms, 600 ms of them in all - some 14 tries (production: 1 s to 30 s,
                 // 15 min). Each retry costs the embedded broker ~0.5 s of its own (a fetch after the seek), so a test
                 // timed against the back-off cannot tell it from Spring's default: the outage is counted in tries
@@ -168,19 +168,20 @@ class UserEventRetryKafkaTest {
     void open() throws Exception {
         var adminConfig = Map.<String, Object>of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, broker.getBrokersAsString());
         try (Admin admin = Admin.create(adminConfig)) {
-            try {
-                admin.createTopics(List.of(new NewTopic(DLT, 1, (short) 1))).all().get(10, TimeUnit.SECONDS);
-            } catch (ExecutionException e) {
-                if (!(e.getCause() instanceof TopicExistsException)) {
-                    throw e;
+            // a broker just started (KRaft) may time out the create, and answer UnknownTopicOrPartition for a topic just
+            // created: both retried till it has the topic. The premise of the partition-2 case: the broker's own
+            // default (num.partitions) is three
+            await().atMost(Duration.ofSeconds(30)).ignoreExceptions().untilAsserted(() -> {
+                try {
+                    admin.createTopics(List.of(new NewTopic(DLT, 1, (short) 1))).all().get(5, TimeUnit.SECONDS);
+                } catch (ExecutionException e) {
+                    if (!(e.getCause() instanceof TopicExistsException)) {
+                        throw e;
+                    }
                 }
-            }
-            // the premise of the partition-2 case: the broker's own default (num.partitions) is three. A topic just
-            // created is not yet in the broker's metadata (KRaft answers UnknownTopicOrPartition): described till it is
-            await().atMost(Duration.ofSeconds(10))
-                    .ignoreExceptionsMatching(e -> e.getCause() instanceof UnknownTopicOrPartitionException)
-                    .untilAsserted(() -> assertThat(admin.describeTopics(List.of(DLT)).allTopicNames()
-                            .get(10, TimeUnit.SECONDS).get(DLT).partitions()).as("the .DLT of one partition").hasSize(1));
+                assertThat(admin.describeTopics(List.of(DLT)).allTopicNames().get(2, TimeUnit.SECONDS).get(DLT).partitions())
+                        .as("the .DLT of one partition").hasSize(1);
+            });
         }
         countedBefore = deadLettersCounted();
         // a save answers with what it saved
@@ -246,12 +247,74 @@ class UserEventRetryKafkaTest {
     }
 
     @Test
+    void aRowBreakingAConstraint_retriedItsBudget_thenKeptOnTheDlt() throws Exception {
+        // retryable in chess (an overlapping insert is found on the retry, the next case): a constraint the retry does
+        // not cure gets the bounded budget, then the DLT. Postgres's own message spans lines ("Detail:" after it): one
+        // line on the .DLT - Spring's own message header (multi-line) excluded, the backup's text
+        UUID uuid = UUID.randomUUID();
+        doThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint on chess_users\n"
+                + "  Detail:\tKey (uuid)=(" + uuid + ") already exists."))
+                .when(chessUserRepository).save(user(uuid));
+
+        String at = send(CREATED, created(uuid, "taken@example.com"));
+
+        ConsumerRecord<String, byte[]> dead = deadLetter(uuid.toString());
+        assertThat(failure(dead)).contains(DataIntegrityViolationException.class.getName());
+        assertThat(header(dead, KafkaErrorHandlerConfig.EXCEPTION_MESSAGE)).isEqualTo(
+                "duplicate key value violates unique constraint on chess_users Detail: Key (uuid)=(" + uuid
+                        + ") already exists.");
+        assertThat(deliveries.of(at)).as("retried its budget, not dead-lettered at once").isGreaterThan(BOUNDED_TRIES);
+        backupSafe(dead);
+        countedOnce();
+    }
+
+    @Test
+    void aDuplicateInsert_theRowAnOverlappingConsumerCommitted_foundOnTheRetry() throws Exception {
+        // two pods: the other committed this user between this one's find and its insert. The retry finds that row
+        // and updates it - nothing on the DLT
+        UUID uuid = UUID.randomUUID();
+        var committed = new ChessUser();
+        committed.setUuid(uuid);
+        committed.setEmail("first@example.com");
+        when(chessUserRepository.findByUuid(uuid)).thenReturn(Optional.empty(), Optional.of(committed));
+        AtomicInteger saves = new AtomicInteger();
+        doAnswer(inv -> {
+            if (saves.incrementAndGet() == 1) {
+                throw new DataIntegrityViolationException("duplicate key value violates unique constraint on chess_users");
+            }
+            return inv.getArgument(0);
+        }).when(chessUserRepository).save(user(uuid));
+
+        String at = send(CREATED, created(uuid, "second@example.com"));
+
+        verify(chessUserRepository, timeout(WAIT.toMillis())).save(argThat(u -> u == committed));
+        assertThat(committed.getEmail()).isEqualTo("second@example.com");
+        assertThat(deliveries.of(at)).as("the duplicate, then the update").isEqualTo(2);
+        assertThat(deadLettersCounted()).as("nothing on the DLT").isEqualTo(countedBefore);
+    }
+
+    @Test
+    void anEventNamingNoUser_keptOnTheDltAtOnce() throws Exception {
+        String marker = "no-uuid-" + UUID.randomUUID();
+        String at = send(CREATED, """
+                {"type":"USER_CREATED","email":"%s@example.com","enabled":true}""".formatted(marker));
+
+        ConsumerRecord<String, byte[]> dead = deadLetter(marker);
+        assertThat(failure(dead)).contains(InvalidUserEventException.class.getName());
+        assertThat(deliveries.of(at)).as("never retried").isEqualTo(1);
+        verify(chessUserRepository, never()).save(argThat(u -> u != null && u.getEmail() != null
+                && u.getEmail().startsWith(marker)));
+        backupSafe(dead);
+        countedOnce();
+    }
+
+    @Test
     void wiredAsInProduction_theHandlerThere_noTestProfile() {
-        // CI runs with SPRING_PROFILES_ACTIVE=test,ci, and KafkaConfig and the handler run outside the test profile
+        // CI runs with SPRING_PROFILES_ACTIVE=test, and KafkaConfig and the handler run outside the test profile
         // only: this class's own profile must win, or every case below waits out its timeout for no listener
         assertThat(environment.getActiveProfiles()).contains("local").doesNotContain("test", "ci");
         assertThat(context.containsBean("kafkaErrorHandler")).isTrue();
-        // the bare JsonDeserializer named above (as the deployment's ConfigMap names it), wrapped all the same
+        // application.yml's ErrorHandlingDeserializer and its JsonDeserializer delegate, as production reads them
         assertThat(consumerFactory.getConfigurationProperties())
                 .containsEntry(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class)
                 .containsKey(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS);
@@ -273,6 +336,8 @@ class UserEventRetryKafkaTest {
         assertThat(dead.value()).as("its original bytes, not JSON of them").isEqualTo(poison.getBytes(UTF_8));
         assertThat(failure(dead)).contains(DeserializationException.class.getName());
         assertThat(header(dead, KafkaErrorHandlerConfig.ORIGINAL_PARTITION)).isEqualTo("2");
+        // no count of its deliveries: with no transaction manager the container calls the interceptor after its
+        // deserialization check, so a value that never deserialized is never counted
         backupSafe(dead);
         verify(chessUserRepository, timeout(WAIT.toMillis())).save(user(next));
         countedOnce();

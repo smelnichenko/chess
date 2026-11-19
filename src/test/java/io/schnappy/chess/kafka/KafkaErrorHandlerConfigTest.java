@@ -5,8 +5,10 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import io.schnappy.chess.config.KafkaConfig;
 import org.junit.jupiter.api.Test;
 import org.apache.kafka.common.header.Headers;
+import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.QueryTimeoutException;
@@ -103,7 +105,7 @@ class KafkaErrorHandlerConfigTest {
     @Test
     void aFailureNoWaitCures_notTheStoreAway() {
         assertThat(KafkaErrorHandlerConfig.storeDown(new IllegalStateException("a bug"))).isFalse();
-        assertThat(KafkaErrorHandlerConfig.storeDown(new DataIntegrityViolationException("uq_users_email"))).isFalse();
+        assertThat(KafkaErrorHandlerConfig.storeDown(new DataIntegrityViolationException("duplicate key value violates unique constraint on chess_users (uuid)"))).isFalse();
         assertThat(KafkaErrorHandlerConfig.storeDown(new SQLException("syntax error", "42601"))).isFalse();
         assertThat(KafkaErrorHandlerConfig.storeDown(new SQLException("no state"))).isFalse();
     }
@@ -117,9 +119,18 @@ class KafkaErrorHandlerConfigTest {
 
         assertThat(new String(headers.lastHeader(KafkaErrorHandlerConfig.ORIGINAL_PARTITION).value(), UTF_8)).isEqualTo("2");
         assertThat(new String(headers.lastHeader(KafkaErrorHandlerConfig.ORIGINAL_OFFSET).value(), UTF_8)).isEqualTo("7");
+        assertThat(new String(headers.lastHeader(KafkaErrorHandlerConfig.ORIGINAL_TIMESTAMP).value(), UTF_8))
+                .isEqualTo(String.valueOf(rec.timestamp()));
         assertThat(new String(headers.lastHeader(KafkaErrorHandlerConfig.EXCEPTION_MESSAGE).value(), UTF_8))
                 .as("the cause's message, its control characters and space runs one space")
                 .isEqualTo("duplicate key Detail: Key (email)=(a@b) exists");
+    }
+
+    @Test
+    void outsideTheTestProfile_asKafkaConfig() {
+        // no chess context runs under "test"; the handler and the listeners it serves share their profile
+        assertThat(KafkaErrorHandlerConfig.class.getAnnotation(Profile.class).value())
+                .containsExactly(KafkaConfig.class.getAnnotation(Profile.class).value());
     }
 
     @Test

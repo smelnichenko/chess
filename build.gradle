@@ -59,7 +59,6 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     // an in-process broker for the chess-user listener's retry and dead-letter test (no Docker in CI)
     testImplementation 'org.springframework.kafka:spring-kafka-test'
-    testImplementation 'org.awaitility:awaitility'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.5.0'
 }

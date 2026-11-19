@@ -48,13 +48,15 @@ import java.util.Map;
  *   <li>its store down (a connection refused, the database starting up): for as long as it is down - never to the
  *       .DLT, where it would come back out of order behind the events that followed it;</li>
  *   <li>any other failure: for KafkaRetryProperties' 15 min of waits, then {@code <topic>.DLT};</li>
- *   <li>no retry helps (not JSON - Spring's default list): the .DLT at once.</li>
+ *   <li>no retry helps (not JSON - Spring's default list; an event naming no user, {@link InvalidUserEventException}):
+ *   the .DLT at once.</li>
  * </ul>
  * A dead letter carries the failure in one-line text headers - the nightly backup dumps every topic as text lines and
  * refuses a binary or multi-line header - and is counted ({@code kafka_dead_letters_total{topic}}: the
  * KafkaDeadLetters alert); one the .DLT refused is counted apart ({@code kafka_dead_letters_refused_total}) and
- * retried again, never committed. Boot wires the handler into every listener container. Its own profile, as
- * KafkaConfig's: Kafka's beans exist only there.
+ * retried again, never committed. Boot wires the handler into every listener container. Outside the test profile,
+ * as KafkaConfig: no chess context runs under it (UserEventRetryKafkaTest runs under "local", as production runs
+ * without it).
  */
 @Slf4j
 @Configuration(proxyBeanMethods = false)
@@ -81,6 +83,10 @@ public class KafkaErrorHandlerConfig {
                 HeadersToAdd.EX_STACKTRACE);
         deadLetters.addHeadersFunction(KafkaErrorHandlerConfig::textHeaders);
         var handler = new DefaultErrorHandler(recoverer(deadLetters, meters), retry.backOff());
+        handler.addNotRetryableExceptions(InvalidUserEventException.class);
+        // DataIntegrityViolationException stays retryable, unlike monitor's: chess's listener finds the row by uuid,
+        // then saves it - a duplicate insert by an overlapping consumer (two pods) finds the committed row on the retry
+        // and updates it. A constraint no retry cures takes the 15 min, then the DLT
         handler.setBackOffFunction((rec, ex) -> storeDown(ex) ? retry.unboundedBackOff() : null);
         return handler;
     }
@@ -127,8 +133,9 @@ public class KafkaErrorHandlerConfig {
     /**
      * The value deserializer wrapped in an ErrorHandlingDeserializer, whatever the configuration names: a value that is
      * not JSON then fails in the wrapper, not in the poll - the handler keeps it on the .DLT and the partition moves
-     * on. A poll that fails is no record the handler can recover: the listener polls that offset for ever. The
-     * deployment's own application.yml (a ConfigMap read after the image's) named the bare JsonDeserializer.
+     * on. A poll that fails is no record the handler can recover: the listener polls that offset for ever. Chess's
+     * application.yml names the wrapper already; this keeps it so if a deployment's configuration names the bare
+     * JsonDeserializer (monitor's ConfigMap did).
      */
     @Bean
     DefaultKafkaConsumerFactoryCustomizer valueDeserializerWrapped() {
