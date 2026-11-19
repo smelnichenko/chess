@@ -165,7 +165,7 @@ class UserEventRetryKafkaTest {
     }
 
     @BeforeEach
-    void open() throws Exception {
+    void open() {
         var adminConfig = Map.<String, Object>of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, broker.getBrokersAsString());
         try (Admin admin = Admin.create(adminConfig)) {
             // a broker just started (KRaft) may time out the create, and answer UnknownTopicOrPartition for a topic just
