@@ -33,7 +33,9 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) {
         http
-            .csrf(csrf -> csrf.disable())
+            // no CSRF token: nothing authenticates by cookie - every request carries the gateway's token in the
+            // Authorization header (GatewayAuthFilter), which a forged cross-site request cannot set; no session either
+            .csrf(csrf -> csrf.disable()) // NOSONAR S4502: header-token auth, no cookie session - see above
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
