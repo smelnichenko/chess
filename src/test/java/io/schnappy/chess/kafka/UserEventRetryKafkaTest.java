@@ -19,6 +19,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.errors.TopicExistsException;
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
@@ -174,9 +175,12 @@ class UserEventRetryKafkaTest {
                     throw e;
                 }
             }
-            // the premise of the partition-2 case: the broker's own default (num.partitions) is three
-            assertThat(admin.describeTopics(List.of(DLT)).allTopicNames().get(10, TimeUnit.SECONDS).get(DLT).partitions())
-                    .as("the .DLT of one partition").hasSize(1);
+            // the premise of the partition-2 case: the broker's own default (num.partitions) is three. A topic just
+            // created is not yet in the broker's metadata (KRaft answers UnknownTopicOrPartition): described till it is
+            await().atMost(Duration.ofSeconds(10))
+                    .ignoreExceptionsMatching(e -> e.getCause() instanceof UnknownTopicOrPartitionException)
+                    .untilAsserted(() -> assertThat(admin.describeTopics(List.of(DLT)).allTopicNames()
+                            .get(10, TimeUnit.SECONDS).get(DLT).partitions()).as("the .DLT of one partition").hasSize(1));
         }
         countedBefore = deadLettersCounted();
         // a save answers with what it saved
