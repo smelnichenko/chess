@@ -51,7 +51,8 @@ public class ArchitectureTest {
     static final ArchRule kafka_must_not_depend_on_config =
             noClasses()
                     .that().resideInAPackage("..kafka..")
-                    .should().dependOnClassesThat().resideInAPackage("..config..")
+                    // chess's own config package: Spring's org.springframework.kafka.config is the Kafka API itself
+                    .should().dependOnClassesThat().resideInAPackage("io.schnappy.chess.config..")
                     .as("Kafka classes must not depend on config classes");
 
     // -------------------------------------------------------------------------

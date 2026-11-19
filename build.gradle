@@ -57,6 +57,8 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // an in-process broker for the chess-user listener's retry and dead-letter test (no Docker in CI)
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.5.0'
 }
@@ -116,6 +118,8 @@ pitest {
     addJUnitPlatformLauncher = false
     targetClasses = ['io.schnappy.chess.**']
     excludedClasses = ['**Config', '**Dto', '**Properties', '**Application']
+    // a broker and a Spring context per run: UserEventConsumer's mutants are UserEventConsumerTest's to kill
+    excludedTestClasses = ['io.schnappy.chess.kafka.UserEventRetryKafkaTest']
     threads = 4
     outputFormats = ['XML', 'HTML']
     timestampedReports = false
