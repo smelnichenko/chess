@@ -39,7 +39,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
     implementation 'org.springframework.boot:spring-boot-starter-liquibase'
-    implementation 'com.github.bhlangonijr:chesslib:1.3.3'
+    implementation 'com.github.bhlangonijr:chesslib:1.3.7'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     // Swap the default OkHttp-based OTLP sender for the JDK HttpClient
