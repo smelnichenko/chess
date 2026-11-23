@@ -52,6 +52,9 @@ dependencies {
     runtimeOnly 'io.opentelemetry:opentelemetry-exporter-sender-jdk'
     runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'com.fasterxml.jackson.core:jackson-databind'
+    // and its java.time module (the messages' Instant fields): springdoc 3.1's swagger-core-jakarta brought it, 3.2's
+    // swagger-core does not - without it spring-kafka's mapper fails every message with a time in it
+    runtimeOnly 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
