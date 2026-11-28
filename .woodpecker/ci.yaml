@@ -31,16 +31,19 @@ steps:
       SPRING_DATASOURCE_PASSWORD: test
       SPRING_DATA_REDIS_HOST: valkey
     commands:
-      # One Gradle home for every build of every app, one Gradle on it at a time - by the kernel: the step holds a flock on
-      # /cache/gradle-shared.flock while it runs, released when its processes end however they end (exit, SIGKILL, pod
-      # deleted). A cancelled build still dying in its 20 s grace, an orphaned step pod or a second workflow WAITS instead
-      # of writing the same caches. Gradle's own locks are kernel locks too, but its request to a holder to release goes
-      # over loopback, which no other pod shares - hence this. Never delete the home's *.lock files: a live Gradle holds them.
-      - export GRADLE_USER_HOME=/cache/gradle/shared
+      # A Gradle home from a pool of three (/cache/gradle/pool/1, 2, 3), shared by every app's builds: the step takes the
+      # first free one and holds a flock on it while it runs, released when its processes end however they end (exit, SIGKILL,
+      # pod deleted). It never waits: Woodpecker runs two workflows at once (infra's WOODPECKER_MAX_WORKFLOWS) and each runs
+      # its Gradle steps one after another, so a home is always free - the third for a cancelled build still dying in its
+      # 20 s grace or an orphaned step pod. Every home taken is a fault, failed at once with its holders named. One Gradle
+      # per home: Gradle's own locks are kernel locks too, but its request to a holder to release goes over loopback, which
+      # no other pod shares. Never delete a home's *.lock files: a live Gradle holds them.
+      - mkdir -p /cache/gradle/pool
+      - 'home=""; for n in 1 2 3; do exec 9>>"/cache/gradle/pool/$n.flock"; if flock -n 9; then home=$n; break; fi; exec 9>&-; done'
+      - '[ -n "$home" ] || { echo "every Gradle home in the pool is taken (three, for two workflows at once) - by: $(cat /cache/gradle/pool/*.holder 2>/dev/null | paste -sd ";")"; exit 1; }'
+      - export GRADLE_USER_HOME=/cache/gradle/pool/$home
       - mkdir -p "$GRADLE_USER_HOME"
-      - exec 9>>/cache/gradle-shared.flock
-      - 'flock -w 1800 9 || { echo "the shared Gradle home is busy (30 min) - held by: $(cat /cache/gradle-shared.holder 2>/dev/null)"; exit 1; }'
-      - 'echo "$CI_REPO pipeline $CI_PIPELINE_NUMBER step $CI_STEP_NAME since $(date -u +%FT%TZ)" > /cache/gradle-shared.holder'
+      - 'echo "$CI_REPO pipeline $CI_PIPELINE_NUMBER step $CI_STEP_NAME since $(date -u +%FT%TZ)" > "/cache/gradle/pool/$home.holder"'
       - ./gradlew check --no-daemon
     backend_options:
       kubernetes:
@@ -60,16 +63,19 @@ steps:
       - ci-cache:/cache   # persistent dependency cache: PVC in infra clusters/production/woodpecker/manifests
     depends_on: [test]
     commands:
-      # One Gradle home for every build of every app, one Gradle on it at a time - by the kernel: the step holds a flock on
-      # /cache/gradle-shared.flock while it runs, released when its processes end however they end (exit, SIGKILL, pod
-      # deleted). A cancelled build still dying in its 20 s grace, an orphaned step pod or a second workflow WAITS instead
-      # of writing the same caches. Gradle's own locks are kernel locks too, but its request to a holder to release goes
-      # over loopback, which no other pod shares - hence this. Never delete the home's *.lock files: a live Gradle holds them.
-      - export GRADLE_USER_HOME=/cache/gradle/shared
+      # A Gradle home from a pool of three (/cache/gradle/pool/1, 2, 3), shared by every app's builds: the step takes the
+      # first free one and holds a flock on it while it runs, released when its processes end however they end (exit, SIGKILL,
+      # pod deleted). It never waits: Woodpecker runs two workflows at once (infra's WOODPECKER_MAX_WORKFLOWS) and each runs
+      # its Gradle steps one after another, so a home is always free - the third for a cancelled build still dying in its
+      # 20 s grace or an orphaned step pod. Every home taken is a fault, failed at once with its holders named. One Gradle
+      # per home: Gradle's own locks are kernel locks too, but its request to a holder to release goes over loopback, which
+      # no other pod shares. Never delete a home's *.lock files: a live Gradle holds them.
+      - mkdir -p /cache/gradle/pool
+      - 'home=""; for n in 1 2 3; do exec 9>>"/cache/gradle/pool/$n.flock"; if flock -n 9; then home=$n; break; fi; exec 9>&-; done'
+      - '[ -n "$home" ] || { echo "every Gradle home in the pool is taken (three, for two workflows at once) - by: $(cat /cache/gradle/pool/*.holder 2>/dev/null | paste -sd ";")"; exit 1; }'
+      - export GRADLE_USER_HOME=/cache/gradle/pool/$home
       - mkdir -p "$GRADLE_USER_HOME"
-      - exec 9>>/cache/gradle-shared.flock
-      - 'flock -w 1800 9 || { echo "the shared Gradle home is busy (30 min) - held by: $(cat /cache/gradle-shared.holder 2>/dev/null)"; exit 1; }'
-      - 'echo "$CI_REPO pipeline $CI_PIPELINE_NUMBER step $CI_STEP_NAME since $(date -u +%FT%TZ)" > /cache/gradle-shared.holder'
+      - 'echo "$CI_REPO pipeline $CI_PIPELINE_NUMBER step $CI_STEP_NAME since $(date -u +%FT%TZ)" > "/cache/gradle/pool/$home.holder"'
       # Pull requests analyse into their OWN project (schnappy-chess-pr): SonarQube CE has no branch analysis, and pull
       # requests writing into schnappy-chess mixed main's record with every branch's - its dashboard showed whoever
       # pushed last (masi's split, 2026-09-20; this repo's 2026-11-16). cd.yaml analyses main into schnappy-chess.
